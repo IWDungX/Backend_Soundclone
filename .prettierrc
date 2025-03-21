@@ -1,0 +1,7 @@
+{
+    "tabWidth": 2,
+    "useTabs": false,
+    "typescript.preferences.quoteStyle": "single",
+    "javascript.preferences.quoteStyle": "single",
+    "singleQuote": true
+}

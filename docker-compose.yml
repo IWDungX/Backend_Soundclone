@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0.37
+    command: --default-authentication-plugin=mysql_native_password --sql_mode="" --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --init-connect='SET NAMES utf8mb4;'
+    restart: always
+    environment:
+      MYSQL_DATABASE: 'sound_db'
+      MYSQL_USER: 'user'
+      MYSQL_PASSWORD: '1234'
+      MYSQL_ROOT_PASSWORD: '1234'
+    ports:
+      - '3306:3306'
+    expose:
+      - '3306'
+    volumes:
+      - my-db:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/my.cnf
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      network1:
+        ipv4_address: 172.22.0.10
+
+  phpmyadmin:
+    image: phpmyadmin:5.2.1-apache
+    ports:
+      - "8090:80"
+    environment:
+      PMA_HOST: 172.22.0.10
+      MYSQL_USER: 'user'
+      MYSQL_PASSWORD: '1234'
+      MYSQL_ROOT_PASSWORD: '1234'
+    depends_on:
+      - db
+    networks:
+      network1:
+        ipv4_address: 172.22.0.11
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9090:9090"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    volumes:
+      - minio_data:/data
+    command: server --console-address ":9090" /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      network1:
+        ipv4_address: 172.22.0.12
+
+  server:
+    build:
+      context: './server'
+      dockerfile: Dockerfile
+    tty: true
+    volumes:
+      - ./server:/src/server
+    ports:
+      - "15000:3001"
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      DATABASE_URL: 'mysql://user:1234@172.22.0.10:3306/sound_db'
+      MYSQL_USERNAME: 'user'
+      MYSQL_PASSWORD: '1234'
+      MYSQL_DATABASE: 'sound_db'
+      MYSQL_HOST: '172.22.0.10'
+      MYSQL_PORT: '3306'
+      JWT_SECRET: '3cf178bf9cc8de0d2bb75b55270ed6792067a0d51234de0c7d4618440324bbfe'
+      MINIO_ENDPOINT: 'minio'
+      MINIO_PORT: '9000'
+      MINIO_USE_SSL: 'false'
+      MINIO_ACCESS_KEY: 'admin'
+      MINIO_SECRET_KEY: 'admin123'
+      MINIO_BUCKET: 'songs-bucket'
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      network1:
+        ipv4_address: 172.22.0.13
+
+volumes:
+  my-db:
+  minio_data:
+
+networks:
+  network1:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.22.0.0/16
