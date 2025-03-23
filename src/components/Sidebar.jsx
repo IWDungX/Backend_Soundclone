@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
     Music,
     Users, // Thay Disc bằng Users
@@ -15,12 +15,22 @@ import {
 } from "lucide-react";
 
 const Sidebar = ({ isExpanded, toggleExpand, onLogout }) => {
+    const location = useLocation();
     const [expandedGroups, setExpandedGroups] = useState({
         common: true,
         listeningData: true
     });
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const navigate = useNavigate();
+
+    const isActiveRoute = (path) => {
+        return location.pathname === path;
+    };
+
+    const getLinkClassName = (path) => {
+        const baseClass = `flex items-center ${isExpanded ? 'justify-start px-4' : 'justify-center'} py-3 hover:bg-[#282828] rounded-lg transition duration-200`;
+        return `${baseClass} ${isActiveRoute(path) ? 'text-white bg-[#282828]' : 'text-gray-400 hover:text-white'}`;
+    };
 
     const toggleGroup = (group) => {
         setExpandedGroups(prev => ({
@@ -62,12 +72,12 @@ const Sidebar = ({ isExpanded, toggleExpand, onLogout }) => {
                 </div>
 
                 {/* Nội dung sidebar */}
-                <div className="flex-1 overflow-y-auto px-2"> {/* Giữ overflow-y-auto để scroll cục bộ nếu cần */}
+                <div className="flex-1 overflow-y-auto px-2">
                     {/* Trang chủ */}
                     <div className="mt-4">
                         <Link
                             to="/dashboard"
-                            className={`flex items-center ${isExpanded ? 'justify-start px-4' : 'justify-center'} py-3 hover:bg-[#282828] rounded-lg transition duration-200 text-gray-400 hover:text-white`}
+                            className={getLinkClassName('/dashboard')}
                         >
                             <House className="w-5 h-5" />
                             {isExpanded && <span className="ml-2">Trang chủ</span>}
@@ -78,7 +88,7 @@ const Sidebar = ({ isExpanded, toggleExpand, onLogout }) => {
                     <div className="mt-4">
                         <Link
                             to="/dashboard/song-manager"
-                            className={`flex items-center ${isExpanded ? 'justify-start px-4' : 'justify-center'} py-3 hover:bg-[#282828] rounded-lg transition duration-200 text-gray-400 hover:text-white`}
+                            className={getLinkClassName('/dashboard/song-manager')}
                         >
                             <Music className="w-5 h-5" />
                             {isExpanded && <span className="ml-2">Quản lý bài hát</span>}
@@ -88,10 +98,10 @@ const Sidebar = ({ isExpanded, toggleExpand, onLogout }) => {
                     {/* Quản lý người dùng */}
                     <div className="mt-4">
                         <Link
-                            to="/dashboard/user-manager" // Thay đổi route
-                            className={`flex items-center ${isExpanded ? 'justify-start px-4' : 'justify-center'} py-3 hover:bg-[#282828] rounded-lg transition duration-200 text-gray-400 hover:text-white`}
+                            to="/dashboard/user-manager"
+                            className={getLinkClassName('/dashboard/user-manager')}
                         >
-                            <Users className="w-5 h-5" /> {/* Thay đổi icon */}
+                            <Users className="w-5 h-5" />
                             {isExpanded && <span className="ml-2">Quản lý người dùng</span>}
                         </Link>
                     </div>
@@ -100,7 +110,7 @@ const Sidebar = ({ isExpanded, toggleExpand, onLogout }) => {
                     <div className="mt-4">
                         <Link
                             to="/dashboard/artist-manager"
-                            className={`flex items-center ${isExpanded ? 'justify-start px-4' : 'justify-center'} py-3 hover:bg-[#282828] rounded-lg transition duration-200 text-gray-400 hover:text-white`}
+                            className={getLinkClassName('/dashboard/artist-manager')}
                         >
                             <User className="w-5 h-5" />
                             {isExpanded && <span className="ml-2">Quản lý nghệ sĩ</span>}
@@ -128,7 +138,7 @@ const Sidebar = ({ isExpanded, toggleExpand, onLogout }) => {
                                 <div className="pl-8">
                                     <Link
                                         to="/dashboard/common-manager/reports"
-                                        className="flex items-center py-2 px-4 text-gray-400 hover:text-white hover:bg-[#282828] rounded-lg transition duration-200"
+                                        className={getLinkClassName('/dashboard/common-manager/reports')}
                                     >
                                         <FileText className="w-5 h-5" />
                                         <span className="ml-2">Xuất báo cáo</span>
@@ -152,14 +162,14 @@ const Sidebar = ({ isExpanded, toggleExpand, onLogout }) => {
                                         <div className="pl-8">
                                             <Link
                                                 to="/dashboard/common-manager/statistics/time"
-                                                className="flex items-center py-2 px-4 text-gray-400 hover:text-white hover:bg-[#282828] rounded-lg transition duration-200"
+                                                className={getLinkClassName('/dashboard/common-manager/statistics/time')}
                                             >
                                                 <Clock className="w-5 h-5" />
                                                 <span className="ml-2">Theo thời gian</span>
                                             </Link>
                                             <Link
                                                 to="/dashboard/common-manager/statistics/genre"
-                                                className="flex items-center py-2 px-4 text-gray-400 hover:text-white hover:bg-[#282828] rounded-lg transition duration-200"
+                                                className={getLinkClassName('/dashboard/common-manager/statistics/genre')}
                                             >
                                                 <Tag className="w-5 h-5" />
                                                 <span className="ml-2">Theo thể loại</span>

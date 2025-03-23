@@ -1,17 +1,19 @@
-// components/Form.jsx
 import { useState } from "react";
 import { X } from "lucide-react"; // Import icon X
 
 const Form = ({
-    title,
-    fields, // Mảng các trường (name, label, type)
-    onSubmit, // Xử lý submit
-    onFileUpload, // Xử lý upload file (nếu có)
-    onClose, // Thêm prop onClose
-    initialValues = {}, // Giá trị mặc định
-    isVisible = false, // Thêm prop để kiểm soát hiển thị modal
-}) => {
+                  title,
+                  fields, // Mảng các trường (name, label, type)
+                  onSubmit, // Xử lý submit
+                  onFileUpload, // Xử lý upload file (nếu có)
+                  onClose, // Thêm prop onClose
+                  initialValues = {}, // Giá trị mặc định
+                  isVisible = false, // Thêm prop để kiểm soát hiển thị modal
+              }) => {
     const [formData, setFormData] = useState(initialValues);
+
+    // Nếu không visible thì return null
+    if (!isVisible) return null;
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -30,8 +32,6 @@ const Form = ({
         onSubmit(formData);
         onClose(); // Đóng modal sau khi submit
     };
-
-    if (!isVisible) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -74,7 +74,7 @@ const Form = ({
                                         name={field.name}
                                         value={formData[field.name] || ""}
                                         onChange={handleInputChange}
-                                        className="w-full bg-[#282828] text-white rounded-lg 
+                                        className="w-full bg-[#282828] text-white rounded-lg
                                             border border-gray-600 p-2.5
                                             focus:ring-2 focus:ring-green-500 focus:border-transparent
                                             placeholder-gray-400"
@@ -86,7 +86,7 @@ const Form = ({
                     </div>
 
                     {/* Footer với các nút */}
-                    <div className="flex justify-end gap-4 mt-6 pt-6 border-t border-[#282828]">
+                    <div className="flex justify-center gap-4 mt-6 pt-6 border-t border-[#282828]">
                         <button
                             type="button"
                             onClick={onClose}

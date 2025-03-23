@@ -1,8 +1,7 @@
-// components/Navbar.jsx
 import { useLocation } from "react-router-dom";
 import { Plus } from "lucide-react"; // Import icon Plus
 
-const Navbar = ({ onAddClick }) => { // Thêm prop onAddClick
+const Navbar = ({ onAddClick }) => {
     const location = useLocation();
 
     // Hàm lấy tiêu đề dựa trên đường dẫn hiện tại
@@ -31,8 +30,8 @@ const Navbar = ({ onAddClick }) => { // Thêm prop onAddClick
     };
 
     return (
-        <div className="px-4 mt-4"> {/* Thêm padding và margin-top giống sidebar */}
-            <nav className="bg-black rounded-xl border border-[#282828] shadow-lg"> {/* Thêm rounded và border giống sidebar */}
+        <div className="px-4 mt-4">
+            <nav className="bg-black rounded-xl border border-[#282828] shadow-lg">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <h1 className="text-white text-2xl font-bold">
                         {getTitle()}
