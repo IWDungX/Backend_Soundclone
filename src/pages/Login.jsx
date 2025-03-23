@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import * as THREE from 'three';
-import Logo from "@/assets/icons/Logo.jsx";
+import Logo from "../assets/icons/Logo.jsx";
 
 const Login = ({ onLogin }) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +23,7 @@ const Login = ({ onLogin }) => {
         //admid/user if login admin navigate to dashboard, login user navigate to introduction
         if (isSuccess) {
             // If login is successful, navigate to home page
-            navigate('/');
+            navigate('/verify-email');
         } else {
             // If login fails, display error message
             setLoginError('Tên đăng nhập hoặc mật khẩu không đúng');

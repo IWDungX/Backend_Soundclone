@@ -1,35 +1,54 @@
-// src/components/Navbar.jsx
-import { FaBell, FaUserCircle, FaSearch } from 'react-icons/fa';
+// components/Navbar.jsx
+import { useLocation } from "react-router-dom";
+import { Plus } from "lucide-react"; // Import icon Plus
 
-function Navbar() {
+const Navbar = ({ onAddClick }) => { // Thêm prop onAddClick
+    const location = useLocation();
+
+    // Hàm lấy tiêu đề dựa trên đường dẫn hiện tại
+    const getTitle = () => {
+        const path = location.pathname;
+        switch (path) {
+            case '/dashboard':
+                return 'Trang chủ';
+            case '/dashboard/song-manager':
+                return 'Quản lý bài hát';
+            case '/dashboard/user-manager':
+                return 'Quản lý người dùng';
+            case '/dashboard/artist-manager':
+                return 'Quản lý nghệ sĩ';
+            case '/dashboard/common-manager':
+                return 'Quản lý chung';
+            case '/dashboard/common-manager/reports':
+                return 'Báo cáo';
+            case '/dashboard/common-manager/statistics/time':
+                return 'Thống kê theo thời gian';
+            case '/dashboard/common-manager/statistics/genre':
+                return 'Thống kê theo thể loại';
+            default:
+                return 'Quản lý hệ thống';
+        }
+    };
+
     return (
-        <div className="bg-[#535353] shadow-md p-4 flex items-center justify-between rounded-lg">
-            <div className="flex items-center">
-                <div className="relative">
-                    <input
-                        type="text"
-                        placeholder="Tìm kiếm..."
-                        className="pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#191414] bg-[#707070] text-white border-gray-700"
-                    />
-                    <FaSearch className="absolute left-3 top-3 text-gray-400" />
+        <div className="px-4 mt-4"> {/* Thêm padding và margin-top giống sidebar */}
+            <nav className="bg-black rounded-xl border border-[#282828] shadow-lg"> {/* Thêm rounded và border giống sidebar */}
+                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+                    <h1 className="text-white text-2xl font-bold">
+                        {getTitle()}
+                    </h1>
+                    <button
+                        onClick={onAddClick}
+                        className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-full
+                            hover:bg-green-600 transition duration-300 ease-in-out"
+                    >
+                        <Plus size={20} />
+                        <span>Thêm mới</span>
+                    </button>
                 </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-                <div className="relative">
-                    <FaBell className="text-gray-300 text-xl cursor-pointer" />
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-            3
-          </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <FaUserCircle className="text-gray-300 text-2xl" />
-                    <span className="font-medium text-white">Admin</span>
-                </div>
-            </div>
+            </nav>
         </div>
     );
-}
+};
 
 export default Navbar;

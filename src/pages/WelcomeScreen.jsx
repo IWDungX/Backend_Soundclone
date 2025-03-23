@@ -152,14 +152,14 @@ const WelcomeScreen = () => {
                                 ${isLoading ? '' : 'animate-pulse'}`}>
                 </div>
 
-                {/* Welcome text with animated entrance */}
+                {/*Text*/}
                 <div
                     className={`transform transition-all duration-1000 ${isLoading ? 'opacity-0 translate-y-10' : 'opacity-100 translate-y-0'}`}>
                     <h1 className="text-6xl font-bold text-white mb-4">
                         Chào Mừng Đến Với
                     </h1>
                     <h2 className="text-5xl font-bold text-green-500 mb-6">
-                        SoundCloud
+                        SoundClone
                     </h2>
                     <p className="text-2xl text-gray-300 mb-12">
                         Nền tảng giải trí âm nhạc hàng đầu

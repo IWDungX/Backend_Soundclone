@@ -1,150 +1,114 @@
-// src/components/Form.jsx
-import { useState } from 'react';
+// components/Form.jsx
+import { useState } from "react";
+import { X } from "lucide-react"; // Import icon X
 
-function Form({ activeTab }) {
-    // State cho các trường dữ liệu
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        phone: '',
-        status: 'active',
-    });
+const Form = ({
+    title,
+    fields, // Mảng các trường (name, label, type)
+    onSubmit, // Xử lý submit
+    onFileUpload, // Xử lý upload file (nếu có)
+    onClose, // Thêm prop onClose
+    initialValues = {}, // Giá trị mặc định
+    isVisible = false, // Thêm prop để kiểm soát hiển thị modal
+}) => {
+    const [formData, setFormData] = useState(initialValues);
 
-    // Cập nhật state khi người dùng nhập liệu
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
+        setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    // Xử lý submit form
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        console.log('Form submitted:', formData);
-        // Thêm logic xử lý form tại đây
-    };
-
-    // Render form khác nhau tùy theo tab
-    const renderForm = () => {
-        switch (activeTab) {
-            case 'info':
-                return (
-                    <>
-                        <div className="mb-4">
-                            <label className="block mb-2 text-gray-300">Tên thông tin</label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded bg-[#707070] text-white border-gray-600"
-                            />
-                        </div>
-                        <div className="mb-4">
-                            <label className="block mb-2 text-gray-300">Mô tả</label>
-                            <textarea
-                                name="description"
-                                value={formData.description}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded bg-[#707070] text-white border-gray-600"
-                                rows="3"
-                            ></textarea>
-                        </div>
-                    </>
-                );
-            case 'artists':
-                return (
-                    <>
-                        <div className="mb-4">
-                            <label className="block mb-2 text-gray-300">Tên nghệ sĩ</label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded bg-[#707070] text-white border-gray-600"
-                            />
-                        </div>
-                        <div className="mb-4">
-                            <label className="block mb-2 text-gray-300">Thể loại</label>
-                            <select
-                                name="genre"
-                                value={formData.genre}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded bg-[#707070] text-white border-gray-600"
-                            >
-                                <option value="">Chọn thể loại</option>
-                                <option value="pop">Pop</option>
-                                <option value="rock">Rock</option>
-                                <option value="jazz">Jazz</option>
-                                <option value="hiphop">Hip Hop</option>
-                            </select>
-                        </div>
-                    </>
-                );
-            case 'users':
-                return (
-                    <>
-                        <div className="mb-4">
-                            <label className="block mb-2 text-gray-300">Tên người dùng</label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded bg-[#707070] text-white border-gray-600"
-                            />
-                        </div>
-                        <div className="mb-4">
-                            <label className="block mb-2 text-gray-300">Email</label>
-                            <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded bg-[#707070] text-white border-gray-600"
-                            />
-                        </div>
-                        <div className="mb-4">
-                            <label className="block mb-2 text-gray-300">Số điện thoại</label>
-                            <input
-                                type="text"
-                                name="phone"
-                                value={formData.phone}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded bg-[#707070] text-white border-gray-600"
-                            />
-                        </div>
-                    </>
-                );
-            default:
-                return null;
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (onFileUpload && file) {
+            onFileUpload(file);
         }
     };
 
-    return (
-        <div className="bg-[#535353] p-4 rounded-lg shadow-md mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-white">Thêm mới</h2>
-            <form onSubmit={handleSubmit}>
-                {renderForm()}
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSubmit(formData);
+        onClose(); // Đóng modal sau khi submit
+    };
 
-                <div className="flex items-center gap-4">
+    if (!isVisible) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-black rounded-xl border border-[#282828] shadow-lg w-full max-w-4xl mx-4">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-[#282828]">
+                    <h2 className="text-2xl font-bold text-white">{title}</h2>
                     <button
-                        type="submit"
-                        className="bg-[#191414] text-white px-4 py-2 rounded hover:bg-gray-800"
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-white transition-colors duration-200"
                     >
-                        Lưu
-                    </button>
-                    <button
-                        type="button"
-                        className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                        onClick={() => setFormData({ name: '', email: '', phone: '', status: 'active' })}
-                    >
-                        Hủy
+                        <X size={24} />
                     </button>
                 </div>
-            </form>
+
+                {/* Form Content */}
+                <form onSubmit={handleSubmit} className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {fields.map((field) => (
+                            <div key={field.name} className="space-y-2">
+                                <label className="block text-gray-300 text-sm font-medium">
+                                    {field.label}
+                                </label>
+                                {field.type === "file" ? (
+                                    <input
+                                        type="file"
+                                        accept="audio/*"
+                                        onChange={handleFileChange}
+                                        className="block w-full text-sm text-gray-300
+                                            file:mr-4 file:py-2 file:px-4
+                                            file:rounded-full file:border-0
+                                            file:text-sm file:font-semibold
+                                            file:bg-green-500 file:text-white
+                                            hover:file:bg-green-600
+                                            cursor-pointer"
+                                    />
+                                ) : (
+                                    <input
+                                        type={field.type}
+                                        name={field.name}
+                                        value={formData[field.name] || ""}
+                                        onChange={handleInputChange}
+                                        className="w-full bg-[#282828] text-white rounded-lg 
+                                            border border-gray-600 p-2.5
+                                            focus:ring-2 focus:ring-green-500 focus:border-transparent
+                                            placeholder-gray-400"
+                                        placeholder={`Nhập ${field.label.toLowerCase()}`}
+                                    />
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Footer với các nút */}
+                    <div className="flex justify-end gap-4 mt-6 pt-6 border-t border-[#282828]">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="bg-gray-500 text-white px-6 py-2.5 rounded-full
+                                hover:bg-gray-600 transition duration-300 ease-in-out
+                                focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            type="submit"
+                            className="bg-green-500 text-white px-6 py-2.5 rounded-full
+                                hover:bg-green-600 transition duration-300 ease-in-out
+                                focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        >
+                            Thêm
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
-}
+};
 
 export default Form;
