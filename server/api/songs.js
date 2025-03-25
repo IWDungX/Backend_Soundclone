@@ -34,14 +34,14 @@ songsRouter.post('/upload', adminOnly, upload.fields([{ name: 'song' }, { name: 
 
         // Kiểm tra dữ liệu đầu vào
         if (!song || !song_title || !artist_id || !genre_id || !song_duration) {
-            return res.status(400).json({ error: '❌ Thiếu thông tin bắt buộc' });
+            return res.status(400).json({ error: 'Thiếu thông tin bắt buộc' });
         }
 
         // Kiểm tra artist_id và genre_id tồn tại
         const artist = await Artist.findByPk(artist_id);
         const genre = await Genre.findByPk(genre_id);
         if (!artist || !genre) {
-            return res.status(404).json({ error: '❌ Artist hoặc Genre không tồn tại' });
+            return res.status(404).json({ error: 'Artist hoặc Genre không tồn tại' });
         }
 
         // Upload file âm thanh lên MinIO
@@ -69,12 +69,12 @@ songsRouter.post('/upload', adminOnly, upload.fields([{ name: 'song' }, { name: 
         });
 
         res.status(201).json({
-            message: '✅ Upload bài hát thành công!',
+            message: 'Upload bài hát thành công!',
             song: newSong,
         });
     } catch (error) {
-        console.error('❌ Lỗi khi upload:', error);
-        res.status(500).json({ error: '❌ Lỗi khi upload bài hát' });
+        console.error('Lỗi khi upload:', error);
+        res.status(500).json({ error: 'Lỗi khi upload bài hát' });
     }
 });
 
@@ -90,8 +90,8 @@ songsRouter.get('/', async (req, res) => {
         });
         res.json(songs);
     } catch (error) {
-        console.error('❌ Lỗi khi lấy danh sách:', error);
-        res.status(500).json({ error: '❌ Lỗi khi lấy danh sách bài hát' });
+        console.error('Lỗi khi lấy danh sách:', error);
+        res.status(500).json({ error: 'Lỗi khi lấy danh sách bài hát' });
     }
 });
 
@@ -105,12 +105,12 @@ songsRouter.get('/:id', async (req, res) => {
             ],
         });
         if (!song) {
-            return res.status(404).json({ error: '❌ Không tìm thấy bài hát' });
+            return res.status(404).json({ error: 'Không tìm thấy bài hát' });
         }
         res.json(song);
     } catch (error) {
-        console.error('❌ Lỗi khi lấy bài hát:', error);
-        res.status(500).json({ error: '❌ Lỗi khi lấy bài hát' });
+        console.error('Lỗi khi lấy bài hát:', error);
+        res.status(500).json({ error: 'Lỗi khi lấy bài hát' });
     }
 });
 
@@ -119,7 +119,7 @@ songsRouter.put('/:id', adminOnly, upload.fields([{ name: 'song' }, { name: 'ima
     try {
         const song = await Song.findByPk(req.params.id);
         if (!song) {
-            return res.status(404).json({ error: '❌ Không tìm thấy bài hát' });
+            return res.status(404).json({ error: 'Không tìm thấy bài hát' });
         }
 
         const { song_title, artist_id, genre_id, song_duration } = req.body;
@@ -130,12 +130,12 @@ songsRouter.put('/:id', adminOnly, upload.fields([{ name: 'song' }, { name: 'ima
         if (song_title) updateData.song_title = song_title;
         if (artist_id) {
             const artist = await Artist.findByPk(artist_id);
-            if (!artist) return res.status(404).json({ error: '❌ Artist không tồn tại' });
+            if (!artist) return res.status(404).json({ error: 'Artist không tồn tại' });
             updateData.artist_id = artist_id;
         }
         if (genre_id) {
             const genre = await Genre.findByPk(genre_id);
-            if (!genre) return res.status(404).json({ error: '❌ Genre không tồn tại' });
+            if (!genre) return res.status(404).json({ error: 'Genre không tồn tại' });
             updateData.genre_id = genre_id;
         }
         if (song_duration) updateData.song_duration = parseInt(song_duration);
@@ -156,12 +156,12 @@ songsRouter.put('/:id', adminOnly, upload.fields([{ name: 'song' }, { name: 'ima
 
         await song.update(updateData);
         res.json({
-            message: '✅ Cập nhật bài hát thành công!',
+            message: 'Cập nhật bài hát thành công!',
             song,
         });
     } catch (error) {
-        console.error('❌ Lỗi khi cập nhật:', error);
-        res.status(500).json({ error: '❌ Lỗi khi cập nhật bài hát' });
+        console.error('Lỗi khi cập nhật:', error);
+        res.status(500).json({ error: 'Lỗi khi cập nhật bài hát' });
     }
 });
 
@@ -170,7 +170,7 @@ songsRouter.delete('/:id', adminOnly, async (req, res) => {
     try {
         const song = await Song.findByPk(req.params.id);
         if (!song) {
-            return res.status(404).json({ error: '❌ Không tìm thấy bài hát' });
+            return res.status(404).json({ error: 'Không tìm thấy bài hát' });
         }
 
         // Xóa file từ MinIO (tùy chọn)
@@ -185,10 +185,10 @@ songsRouter.delete('/:id', adminOnly, async (req, res) => {
 
         // Xóa bản ghi từ MySQL
         await song.destroy();
-        res.json({ message: '✅ Xóa bài hát thành công!' });
+        res.json({ message: 'Xóa bài hát thành công!' });
     } catch (error) {
-        console.error('❌ Lỗi khi xóa:', error);
-        res.status(500).json({ error: '❌ Lỗi khi xóa bài hát' });
+        console.error('Lỗi khi xóa:', error);
+        res.status(500).json({ error: 'Lỗi khi xóa bài hát' });
     }
 });
 

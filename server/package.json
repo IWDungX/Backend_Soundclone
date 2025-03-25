@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "docker": "npx sequelize db:migrate && nodemon index.js",
-    "migrate": "npx sequelize db:migrate && npx sequelize-cli db:seed:all"
+    "migrate": "npx sequelize db:migrate"
   },
   "keywords": [],
   "author": "",

@@ -97,6 +97,22 @@ services:
       network1:
         ipv4_address: 172.22.0.13
 
+  admin:
+    build: 
+      context: ./admin
+      dockerfile: Dockerfile
+    stdin_open: true
+    volumes:
+      - ./admin:/src/admin
+    ports:
+      - 3000:3000
+    depends_on:
+      - server
+    networks:
+      network1:
+        ipv4_address: 172.22.0.14 
+    
+
 volumes:
   my-db:
   minio_data:

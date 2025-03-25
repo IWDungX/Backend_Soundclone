@@ -1,21 +1,36 @@
 const express = require('express');
-const app = express();
-const routes = require('./api'); 
+const cors = require('cors');
+const path = require('path');
+require('dotenv').config();
 
-module.exports = app;
+const app = express(); 
+
 let requestID = 0;
+function logger(req, res, next) {
+  console.log(`Request #${requestID}\nRequest fired: ${req.url}\nMethod: ${req.method}`);
+  requestID += 1;
+  next();
+}
 
+
+app.use(logger);
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
+app.use(cors({ origin: '*' }));
 
-app.get("/", (req, res) => {
-  res.send("Hello, this is the homepage!");
+app.use(cors({
+  origin: 'http://localhost:3000',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+app.use(express.json());
+
+app.use('/api', require('./api'));
+
+
+app.get('/', (req, res) => {
+  res.send('Hello, this is the homepage!');
 });
-app.use('/api/', require('./api'));
-
-const userRouter = require('./api/test');
-app.use('/api/users', userRouter);
-
 
 app.get('/ping', (req, res) => {
   try {
@@ -24,3 +39,12 @@ app.get('/ping', (req, res) => {
     res.status(500).send(message);
   }
 });
+
+// Phục vụ file tĩnh (chỉ áp dụng nếu không khớp route nào ở trên)
+app.use(express.static(path.join(__dirname, '..', 'admin', 'dist')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'admin', 'dist', 'index.html'));
+});
+
+// Xuất app sau khi đã cấu hình
+module.exports = app;
