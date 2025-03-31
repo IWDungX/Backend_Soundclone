@@ -1,0 +1,32 @@
+{
+  "name": "wait-for-it.sh",
+  "version": "1.0.0",
+  "description": "Pure bash script to test and wait on the availability of a TCP host and port",
+  "author": "Jason Maurer",
+  "license": "MIT",
+  "homepage": "https://github.com:jsonmaur/wait-for-it.sh#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jsonmaur/wait-for-it.sh"
+  },
+  "keywords": [
+    "wait",
+    "bash",
+    "timeout",
+    "shell",
+    "tcp",
+    "ping"
+  ],
+  "files": [
+    "bin/",
+    "license",
+    "readme.md"
+  ],
+  "main": "index.js",
+  "bin": {
+    "wait-for-it": "bin/wait-for-it"
+  },
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {}
+}
