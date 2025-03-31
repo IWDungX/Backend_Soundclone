@@ -1,10 +1,18 @@
-import { useLocation } from "react-router-dom";
-import { Plus } from "lucide-react"; // Import icon Plus
+import { useLocation, useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
 
 const Navbar = ({ onAddClick }) => {
     const location = useLocation();
+    const navigate = useNavigate();
 
-    // Hàm lấy tiêu đề dựa trên đường dẫn hiện tại
+    // Kiểm tra token
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+        // Nếu không có token, chuyển hướng về trang đăng nhập
+        navigate('/login');
+        return null;
+    }
+
     const getTitle = () => {
         const path = location.pathname;
         switch (path) {

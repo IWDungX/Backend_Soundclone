@@ -6,8 +6,16 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
     plugins: [react(), tailwindcss()], root: './', // Thư mục chứa source code
     server: {
-        port: 3001, // Cổng chạy ứng dụng
-        open: true,  // Tự động mở trình duyệt khi chạy
+        proxy: {
+            '/api': {
+                target: 'http://localhost:15000',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api/, '/api'),
+            },
+        },
+        port: 3000, // Cổng chạy ứng dụng
+        open: true,
+        host: true
     }, resolve: {
         alias: {
             '@': '/src', // Định nghĩa alias để dễ dàng import

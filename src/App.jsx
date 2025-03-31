@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {BrowserRouter as Router, Navigate, Route, Routes} from "react-router-dom";
+import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import Empty from './components/Empty';
 import ParticleBackground from './components/ParticleBackground';
@@ -35,8 +36,8 @@ const App = () => {
     };
 
     useEffect(() => {
-        const authStatus = sessionStorage.getItem('isAuthenticated');
-        const verifyStatus = sessionStorage.getItem('isVerified');
+        const authStatus = localStorage.getItem('isAuthenticated');
+        const verifyStatus = localStorage.getItem('isVerified');
 
         if (authStatus === 'true') {
             setIsAuthenticated(true);
@@ -49,25 +50,53 @@ const App = () => {
         setIsLoading(false);
     }, []);
 
-    const handleLogin = (username, password) => {
-        if (username && password) {
-            setIsAuthenticated(true);
-            sessionStorage.setItem('isAuthenticated', 'true');
-            return true;
+    const handleLogin = async (email, password) => {
+        try {
+            const response = await axios.post('http://localhost:15000/api/authAdmin', {
+                user_email: email,
+                user_password: password
+            });
+            console.log('Phản hồi từ handleLogin:', response.data);
+            if (response.data.success) {
+                const { token } = response.data;
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('token', token);
+                setIsAuthenticated(true);
+                return response.data; // Trả về toàn bộ response.data
+            } else {
+                return response.data; // Trả về response.data để có errorMessage
+            }
+        } catch (error) {
+            console.error('Lỗi đăng nhập:', error);
+            throw error; // Ném lỗi để Login.jsx xử lý
         }
-        return false;
     };
 
-    const handleVerify = () => {
-        setIsVerified(true);
-        sessionStorage.setItem('isVerified', 'true');
-    };
+    
+    const handleLogout = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post('http://localhost:15000/api/authAdmin/logout', {}, {
+                headers: {
+                    Authorization: `Bearer ${token}` // Gửi token trong header
+                }
+            });
+            console.log('Phản hồi từ logout:', response.data);
 
-    const handleLogout = () => {
-        setIsAuthenticated(false);
-        setIsVerified(false);
-        sessionStorage.removeItem('isAuthenticated');
-        sessionStorage.removeItem('isVerified');
+            if (response.data.success) {
+                setIsAuthenticated(false);
+                localStorage.removeItem('isAuthenticated');
+                localStorage.removeItem('token');
+            } else {
+                console.error('Logout thất bại:', response.data.errorMessage);
+            }
+        } catch (error) {
+            console.error('Lỗi khi gọi API logout:', error.response?.data || error);
+            // Vẫn xóa trạng thái cục bộ ngay cả khi API lỗi
+            setIsAuthenticated(false);
+            localStorage.removeItem('isAuthenticated');
+            localStorage.removeItem('token');
+        }
     };
 
     if (isLoading) {
@@ -83,16 +112,11 @@ const App = () => {
                         <Route path="/" element={<WelcomeScreen/>}/>
                         <Route path="/login" element={
                             isAuthenticated ?
-                                (isVerified ? <Navigate to="/dashboard"/> : <Navigate to="/verify-email"/>)
+                                (isVerified ? <Navigate to="/dashboard"/> : <Navigate to="/dashboard"/>)
                                 : <Login onLogin={handleLogin}/>
-                        }/>
-                        <Route path="/verify-email" element={
-                            !isAuthenticated ? <Navigate to="/login"/> :
-                                (isVerified ? <Navigate to="/dashboard"/> : <VerifyScreen onVerify={handleVerify}/>)
                         }/>
                         <Route path="/dashboard/*" element={
                             !isAuthenticated ? <Navigate to="/login"/> :
-                                (!isVerified ? <Navigate to="/verify-email"/> :
                                     <div className="flex h-full relative z-10">
                                         <Sidebar
                                             isExpanded={isExpanded}
@@ -112,7 +136,6 @@ const App = () => {
                                             </Routes>
                                         </div>
                                     </div>
-                                )
                         }/>
                         <Route path="*" element={
                             isAuthenticated ?
