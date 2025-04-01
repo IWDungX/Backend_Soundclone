@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import Form from "../components/Form";
 import Table from "../components/Table";
-import { fetchSongs, uploadSong, updateSong, deleteSong } from "../services/api";
+import { fetchSongs, uploadSong, updateSong, deleteSong } from "../services/apiSongs";
 
 const SongManager = () => {
     const [songs, setSongs] = useState([]);
@@ -11,7 +11,17 @@ const SongManager = () => {
 
     useEffect(() => {
         fetchSongs()
-            .then((data) => setSongs(data))
+            .then((data) => {
+                console.log("Fetched songs:", data);
+    
+                const normalizedSongs = data.map((song) => ({
+                    ...song,
+                    song_id: song.song_id || song.id, 
+                    artist: song.Artist, 
+                    genre: song.Genre,   
+                }));
+                setSongs(normalizedSongs);
+            })
             .catch((error) => console.error("Error fetching songs:", error));
     }, []);
 
@@ -25,15 +35,18 @@ const SongManager = () => {
                 file: formData.file,
                 image: formData.image,
             };
-
+    
             let result;
             if (editingSong) {
-                result = await updateSong(editingSong.id, songData);
-                setSongs(songs.map((s) => (s.id === editingSong.id ? result.song : s)));
+                result = await updateSong(editingSong.song_id, songData);
+                console.log("Updated song:", result.song); 
+                setSongs(songs.map((s) => (s.song_id === editingSong.song_id ? result.song : s))); 
             } else {
                 result = await uploadSong(songData);
+                console.log("New song:", result.song); 
                 setSongs([...songs, result.song]);
             }
+    
             setEditingSong(null);
             setIsFormVisible(false);
         } catch (error) {
@@ -42,6 +55,14 @@ const SongManager = () => {
     };
 
     const handleEdit = (song) => {
+        console.log("Editing song:", song); 
+        console.log("Song ID:", song?.song_id); 
+    
+        if (!song?.song_id) {
+            alert("Lỗi: Không tìm thấy ID bài hát");
+            return;
+        }
+    
         setEditingSong(song);
         setIsFormVisible(true);
     };
@@ -50,7 +71,7 @@ const SongManager = () => {
         if (!window.confirm("Bạn có chắc muốn xóa bài hát này?")) return;
         try {
             await deleteSong(song_id);
-            setSongs(songs.filter((song) => song.song_id !== song_id));
+            setSongs(songs.filter((song) => song.song_id !== song_id)); 
         } catch (error) {
             alert("Không thể xóa bài hát: " + error.message);
         }
@@ -58,11 +79,11 @@ const SongManager = () => {
 
     const columns = [
         { key: "song_title", label: "Tên bài hát" },
-        { key: "genre", label: "Thể loại", render: (value) => value?.genre_name || "N/A" },
-        { key: "artist", label: "Nghệ sĩ", render: (value) => value?.artist_name || "N/A" },
+        { key: "genre", label: "Thể loại", render: (song) => song?.genre?.genre_name || "Không xác định" },
+        { key: "artist", label: "Nghệ sĩ", render: (song) => song?.artist?.artist_name || "Không rõ" },
         { key: "song_duration", label: "Thời lượng" },
-        { key: "song_audio_url", label: "File nhạc", render: (value) => (
-            value ? <audio controls src={value} /> : "Chưa có file"
+        { key: "song_audio_url", label: "File nhạc", render: (song) => (
+            song?.song_audio_url ? <audio controls src={song.song_audio_url} /> : "Chưa có file"
         )},
         {
             key: "actions",
@@ -72,7 +93,7 @@ const SongManager = () => {
                     <button onClick={() => handleEdit(song)} className="bg-yellow-500 text-white p-1 rounded mr-2">
                         Sửa
                     </button>
-                    <button onClick={() => handleDelete(song.id)} className="bg-red-500 text-white p-1 rounded">
+                    <button onClick={() => handleDelete(song?.song_id)} className="bg-red-500 text-white p-1 rounded">
                         Xóa
                     </button>
                 </>

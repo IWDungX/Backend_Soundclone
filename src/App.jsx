@@ -68,7 +68,7 @@ const App = () => {
             }
         } catch (error) {
             console.error('Lỗi đăng nhập:', error);
-            throw error; // Ném lỗi để Login.jsx xử lý
+            throw error;
         }
     };
 

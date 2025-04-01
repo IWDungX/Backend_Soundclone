@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react"; // Import icon X
-import { fetchArtists, fetchGenres } from "../services/api"; // Import API calls
+import { fetchArtists, fetchGenres } from "../services/apiSongs"; // Import API calls
 
 const Form = ({
     title,
