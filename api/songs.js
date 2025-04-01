@@ -2,15 +2,15 @@
 const { Router } = require('express');
 const multer = require('multer');
 const Minio = require('minio');
-const { Song, Artist, Genre } = require('../../models');
-const { verifyToken, checkPermission, checkRole} = require('../../utils/auth');
+const { Song, Artist, Genre } = require('../models');
+const { verifyToken, checkPermission, checkRole} = require('../utils/auth');
 
 
 const songsRouter = Router();
 
 // Khởi tạo MinIO client với biến môi trường
 const minioClient = new Minio.Client({
-    endPoint: process.env.MINIO_ENDPOINT || 'minio',
+    endPoint: process.env.MINIO_ENDPOINT || 'localhost',
     port: parseInt(process.env.MINIO_PORT) || 9000,
     useSSL: process.env.MINIO_USE_SSL === 'true',
     accessKey: process.env.MINIO_ACCESS_KEY || 'q7sZX6jQCrzTzhFY31Jh',
@@ -50,14 +50,14 @@ songsRouter.post('/upload', adminOnly, upload.fields([{ name: 'song' }, { name: 
         // Upload file âm thanh lên MinIO 
         const songFileName = `songs/${genreFolder}/${Date.now()}-${song[0].originalname}`;
         await minioClient.putObject(bucketName, songFileName, song[0].buffer);
-        const songUrl = `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${bucketName}/${songFileName}`;
+        const songUrl = `http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/${songFileName}`;
 
         // Upload hình ảnh nếu có
         let imageUrl = null;
         if (image) {
             const imageFileName = `images/${genreFolder}/${Date.now()}-${image[0].originalname}`;
             await minioClient.putObject(bucketName, imageFileName, image[0].buffer);
-            imageUrl = `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${bucketName}/${imageFileName}`;
+            imageUrl = `http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/${imageFileName}`;
         }
 
         // Lưu bài hát vào MySQL
@@ -170,18 +170,19 @@ songsRouter.put('/:id', adminOnly, upload.fields([{ name: 'song' }, { name: 'ima
         if (songFile) {
             const songFileName = `${Date.now()}-${songFile[0].originalname}`;
             await minioClient.putObject(bucketName, songFileName, songFile[0].buffer);
-            updateData.song_audio_url = `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${bucketName}/${songFileName}`;
+            updateData.song_audio_url = `http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/${songFileName}`;
         }
 
         // Cập nhật hình ảnh nếu có
         if (image) {
             const imageFileName = `${Date.now()}-${image[0].originalname}`;
             await minioClient.putObject(bucketName, imageFileName, image[0].buffer);
-            updateData.song_image_url = `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${bucketName}/${imageFileName}`;
+            updateData.song_image_url = `http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/${imageFileName}`;
         }
 
         await song.update(updateData);
         res.json({
+            succes: true,
             message: 'Cập nhật bài hát thành công!',
             song,
         });
@@ -201,17 +202,20 @@ songsRouter.delete('/:id', adminOnly, async (req, res) => {
 
         // Xóa file từ MinIO (tùy chọn)
         if (song.song_audio_url) {
-            const audioFileName = song.song_audio_url.split('/').pop();
-            await minioClient.removeObject(bucketName, audioFileName);
+            const audioFilePath = song.song_audio_url.replace(`http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/`, '');
+            await minioClient.removeObject(bucketName, audioFilePath);
         }
         if (song.song_image_url) {
-            const imageFileName = song.song_image_url.split('/').pop();
-            await minioClient.removeObject(bucketName, imageFileName);
+            const imageFilePath = song.song_image_url.replace(`http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/`, '');
+            await minioClient.removeObject(bucketName, imageFilePath);
         }
 
         // Xóa bản ghi từ MySQL
         await song.destroy();
-        res.json({ message: 'Xóa bài hát thành công!' });
+        res.json({ 
+            succes: true,
+            message: 'Xóa bài hát thành công!'
+         });
     } catch (error) {
         console.error('Lỗi khi xóa:', error);
         res.status(500).json({ error: 'Lỗi khi xóa bài hát' });

@@ -2,13 +2,13 @@ const { Router } = require('express');
 const router = Router();
 
 
-// Route mẫu để kiểm tra
-router.use('/login', require('./client/login'));
-router.use('/playlist', require('./client/playlist'));
-router.use('/register', require('./client/register'));
-router.use('/verify', require('./client/verify'));
-router.use('/songs', require('./client/songs'));
+router.use('/login', require('./login'));
+router.use('/playlist', require('./playlist'));
+router.use('/register', require('./register'));
+router.use('/verify', require('./verify'));
+router.use('/songs', require('./songs'));
+router.use('/artist', require('./artist'));
 
-router.use('/authAdmin', require('./admin/authAdmin'));
+router.use('/authAdmin', require('./authAdmin'));
 
 module.exports = router;

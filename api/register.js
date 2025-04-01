@@ -1,8 +1,8 @@
 const { Router } = require('express');
 const { v4: uuidv4 } = require('uuid');
-const bcrypt = require('../../utils/bcrypt');
-const { User, UserRole, Role, sequelize } = require('../../models');
-const { sendVerificationEmail } = require('../../utils/email');
+const bcrypt = require('../utils/bcrypt');
+const { User, UserRole, Role, sequelize } = require('../models');
+const { sendVerificationEmail } = require('../utils/email');
 const crypto = require('crypto');
 
 const registerRouter = Router();

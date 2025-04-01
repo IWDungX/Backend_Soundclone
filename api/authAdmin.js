@@ -1,8 +1,8 @@
 const { Router } = require('express');
-const { User, Role, UserRole } = require('../../models');
-const bcrypt = require('../../utils/bcrypt');
+const { User, Role, UserRole } = require('../models');
+const bcrypt = require('../utils/bcrypt');
 const jwt = require('jsonwebtoken');
-const { verifyToken, checkRole } = require('../../utils/auth');
+const { verifyToken, checkRole } = require('../utils/auth');
 
 const adminRouter = Router();
 
@@ -43,7 +43,7 @@ adminRouter.post('/', async (req, res) => {
     const token = jwt.sign(
       { userId: user.user_id, roles: roles },
       process.env.JWT_SECRET,
-      { expiresIn: '2h' }
+      { expiresIn: '1h' }
     );
 
     res.status(200).json({

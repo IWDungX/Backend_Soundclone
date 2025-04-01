@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const { Sequelize } = require("sequelize");
-const { Song, Playlist, PlaylistSong, Artist, LikeSong } = require("../../models");
+const { Song, Playlist, PlaylistSong, Artist, LikeSong } = require("../models");
 
 const playlistRouter = Router();
 
