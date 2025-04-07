@@ -45,7 +45,7 @@ loginRouter.post('/', async (req, res) => {
 
     // Tạo token JWT với ID và vai trò người dùng
     const token = jwt.sign(
-      { userId: user.user_id, roles: roles },
+      { userId: user.user_id, userName: user.user_name, roles: roles },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );

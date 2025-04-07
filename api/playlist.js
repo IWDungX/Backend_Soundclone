@@ -1,15 +1,19 @@
 const { Router } = require("express");
 const { Sequelize } = require("sequelize");
-const { Song, Playlist, PlaylistSong, Artist, LikeSong } = require("../models");
+const { User, Song, Playlist, PlaylistSong, Artist, LikeSong } = require("../models");
+const { verifyToken } = require("../utils/auth");
 
 const playlistRouter = Router();
 
 // Tạo playlist mới
-playlistRouter.post('/', async (req, res) => {
-    const { playlist_title, user_id } = req.body;
+playlistRouter.post('/', verifyToken, async (req, res) => {
+    const { playlist_title } = req.body;
+    const user_id = req.user.userId;
     try {
         const newPlaylist = await Playlist.create({ playlist_title, user_id }); 
         return res.status(201).json({
+            success: true,
+            messeage: "Tạo Playlist thành công",
             user_id, 
             playlist_title, 
             songs: []
@@ -21,7 +25,7 @@ playlistRouter.post('/', async (req, res) => {
 });
 
 // Thêm bài hát vào playlist
-playlistRouter.post('/playlists/:id/songs', async (req, res) => {
+playlistRouter.post('/:id/songs', async (req, res) => {
     const { id } = req.params;
     const { title, artist, duration } = req.body;
     try {

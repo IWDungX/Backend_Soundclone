@@ -8,6 +8,7 @@ router.use('/register', require('./register'));
 router.use('/verify', require('./verify'));
 router.use('/songs', require('./songs'));
 router.use('/artist', require('./artist'));
+router.use('/users', require('./users'));
 
 router.use('/authAdmin', require('./authAdmin'));
 

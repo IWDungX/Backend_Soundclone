@@ -26,7 +26,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Middleware kiểm tra quyền admin
 const adminOnly = [verifyToken, checkRole('admin')];
 
-// API Upload bài hát (Create)
+// API Upload bài hát
 songsRouter.post('/upload', adminOnly, upload.fields([{ name: 'song' }, { name: 'image' }]), async (req, res) => {
     try {
         const { song, image } = req.files;
@@ -101,7 +101,7 @@ songsRouter.get('/', async (req, res) => {
 songsRouter.get('/genres', async (req, res) => {
     try {
         const genres = await Genre.findAll({
-            attributes: ['genre_id', 'genre_name'], // Chỉ lấy id và tên thể loại
+            attributes: ['genre_id', 'genre_name'],
         });
         res.json(genres);
     } catch (error) {
@@ -113,7 +113,7 @@ songsRouter.get('/genres', async (req, res) => {
 songsRouter.get('/artists', async (req, res) => {
     try {
         const artists = await Artist.findAll({
-            attributes: ['artist_id', 'artist_name'], // Chỉ lấy id và tên nghệ sĩ
+            attributes: ['artist_id', 'artist_name'], 
         });
         res.json(artists);
     } catch (error) {
