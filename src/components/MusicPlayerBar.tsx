@@ -3,6 +3,8 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'rea
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import TrackPlayer, { usePlaybackState, State, useProgress, Event, useTrackPlayerEvents } from 'react-native-track-player';
+import { Previous, Pause, Play, Next } from 'iconsax-react-nativejs';
+import NowPlayingScreen from '../screens/music/NowPlayingScreen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -80,7 +82,7 @@ const MusicPlayerBar = ({ currentTrack }) => {
             activeOpacity={0.7}
             style={styles.controlButton}
           >
-            <Ionicons name="play-skip-back" size={24} color="#FFFFFF" />
+            <Previous color="#ffffff" size={28}/>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(e) => {
@@ -90,7 +92,11 @@ const MusicPlayerBar = ({ currentTrack }) => {
             activeOpacity={0.7}
             style={styles.controlButton}
           >
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={30} color="#FFFFFF" />
+          {isPlaying ? (
+              <Pause size="35" color="#fff" />
+          ) : (
+              <Play size="35" color="#fff" />
+          )}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(e) => {
@@ -100,7 +106,7 @@ const MusicPlayerBar = ({ currentTrack }) => {
             activeOpacity={0.7}
             style={styles.controlButton}
           >
-            <Ionicons name="play-skip-forward" size={24} color="#FFFFFF" />
+            <Next color="#ffffff" size={28}/>
           </TouchableOpacity>
         </View>
       </View>

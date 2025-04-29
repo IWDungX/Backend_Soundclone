@@ -5,8 +5,9 @@ import AuthService from '../service/auth';
 export const AuthContext = createContext({
   isAuthenticated: false,
   user: null,
-  login: async (email: string, password: string) => {},
+  login: async (email, password) => {},
   logout: async () => {},
+  isLoading: true,
 });
 
 export const AuthProvider = ({ children }) => {
@@ -17,12 +18,27 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        const token = await AuthService.getToken();
-        const userData = await EncryptedStorage.getItem('userData');
-        if (token && userData) {
-          setIsAuthenticated(true);
-          setUser(JSON.parse(userData));
-          console.log('Auth status: Đã đăng nhập, user:', userData);
+       const token = await AuthService.getToken();
+       if (token) {
+         console.log('Token lấy ra:', token);
+       const response = await fetch('http://192.168.22.72:15000/api/verify-token', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+       const data = await response.json();
+          if (response.ok && data.success) {
+            const userData = await EncryptedStorage.getItem('userData');
+            setIsAuthenticated(true);
+            setUser(userData ? JSON.parse(userData) : null);
+            console.log('Auth status: Đã đăng nhập, user:', userData);
+          } else {
+            await AuthService.logout();
+            console.log('Token không hợp lệ, đã xóa:', data.message || 'Không có thông báo lỗi');
+          }
         } else {
           console.log('Auth status: Chưa đăng nhập');
         }
@@ -35,20 +51,21 @@ export const AuthProvider = ({ children }) => {
     checkAuthStatus();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email, password) => {
     try {
-      const response = await fetch('http://192.168.1.2:15000/api/login', {
+      const response = await fetch('http://192.168.22.72:15000/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ user_email: email, user_password: password }),
       });
       const data = await response.json();
-      if (!response.ok) {
+      if (!response.ok || !data.success) {
         throw new Error(data.message || 'Đăng nhập thất bại');
       }
-      const { token, refreshToken, user } = data; // Giả định API trả về token, refreshToken, user
+      const { token, refreshToken, user } = data;
+      console.log('Token sau khi đăng nhập:', token); // Thêm log để kiểm tra token
       await EncryptedStorage.setItem('token', token);
       await EncryptedStorage.setItem('refreshToken', refreshToken);
       await EncryptedStorage.setItem('userData', JSON.stringify(user));
@@ -73,13 +90,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  if (isLoading) {
-    return null; // Hoặc hiển thị màn hình loading
-  }
-
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
+export const useAuth = () => React.useContext(AuthContext);

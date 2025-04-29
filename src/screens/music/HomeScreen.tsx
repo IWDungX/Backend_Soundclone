@@ -88,31 +88,73 @@ const HomeScreen = () => {
     const fetchData = async () => {
       try {
         const songsData = await getSongs();
+        console.log('Songs data from API:', songsData); // Log dữ liệu API
         const formattedSongs = songsData.map((song) => ({
           id: song.song_id,
-          title: song.song_title,
+          title: song.song_title || 'Unknown Title',
           artist: song.Artist?.artist_name || 'Unknown Artist',
-          song_audio_url: getFullMinioUrl(song.song_audio_url),
-          song_image_url: song.song_image_url,
+          song_audio_url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
+          song_image_url: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
           albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
           duration: song.song_duration || '4:00',
-          url: getFullMinioUrl(song.song_audio_url),
-          lastPlayed: song.song_createAt,
-        }));
+          url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
+          lastPlayed: song.song_createAt || new Date().toISOString(),
+        })).filter(song => song.url); // Lọc các bài hát có url hợp lệ
+        console.log('Formatted songs:', formattedSongs); // Log dữ liệu đã format
         setRecentlyPlayed(formattedSongs);
       } catch (error) {
         console.error('Lỗi khi lấy dữ liệu từ API:', error);
         setRecentlyPlayed([]);
         if (error.response?.status === 401) {
-          await AuthService.logout();
-          await logout();
-          navigation.navigate('LoginScreen');
+          try {
+            const newToken = await AuthService.refreshToken();
+            if (newToken) {
+              // Thử lại API với token mới
+              const songsData = await getSongs();
+              const formattedSongs = songsData.map((song) => ({
+                id: song.song_id,
+                title: song.song_title || 'Unknown Title',
+                artist: song.Artist?.artist_name || 'Unknown Artist',
+                song_audio_url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
+                song_image_url: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+                albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+                duration: song.song_duration || '4:00',
+                url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
+                lastPlayed: song.song_createAt || new Date().toISOString(),
+              })).filter(song => song.url);
+              setRecentlyPlayed(formattedSongs);
+            } else {
+              await AuthService.logout();
+              await logout();
+              navigation.navigate('LoginScreen');
+            }
+          } catch (refreshError) {
+            console.error('Không thể refresh token:', refreshError);
+            await AuthService.logout();
+            await logout();
+            navigation.navigate('LoginScreen');
+          }
         }
       }
     };
 
     fetchData();
   }, [navigation, logout]);
+
+  useEffect(() => {
+    const syncTrackPlayer = async () => {
+      try {
+        const queue = await TrackPlayer.getQueue();
+        const currentTrackIndex = await TrackPlayer.getCurrentTrack();
+        if (currentTrackIndex !== null && queue[currentTrackIndex]) {
+          setCurrentTrack(queue[currentTrackIndex]);
+        }
+      } catch (error) {
+        console.error('Error syncing TrackPlayer:', error);
+      }
+    };
+    syncTrackPlayer();
+  }, []);
 
   useEffect(() => {
     const getGreetingByTime = () => {
@@ -133,8 +175,8 @@ const HomeScreen = () => {
     console.log('TrackPlayer event:', event);
     if (event.type === Event.PlaybackTrackChanged && event.nextTrack !== null) {
       const queue = await TrackPlayer.getQueue();
-      const nextTrackIndex = queue.findIndex((track) => track.id === event.nextTrack);
-      if (nextTrackIndex !== -1) {
+      const nextTrackIndex = event.nextTrack;
+      if (nextTrackIndex >= 0 && nextTrackIndex < queue.length) {
         setCurrentTrack(queue[nextTrackIndex]);
         console.log('Current track updated:', queue[nextTrackIndex]);
       }
@@ -176,65 +218,40 @@ const HomeScreen = () => {
   };
 
   const handleSongPress = async (song: any) => {
-    console.log('Playing song:', song.title);
-    const track = {
-      id: song.id,
-      url: song.song_audio_url,
-      title: song.title,
-      artist: song.artist,
-      artwork: song.song_image_url ? getFullMinioUrl(song.song_image_url) : undefined,
-    };
+    // Build full playlist
+    const tracks = recentlyPlayed
+      .map((item) => ({
+        id: String(item.id),
+        url: item.song_audio_url!,
+        title: item.title,
+        artist: item.artist,
+        artwork: item.song_image_url!,
+      }))
+      .filter(t => t.url);
 
-    if (!track.url) {
-      Alert.alert('Lỗi', 'Không tìm thấy URL bài hát');
+    if (tracks.length === 0) {
+      Alert.alert('Lỗi', 'Danh sách bài hát trống hoặc không hợp lệ');
       return;
     }
 
-    try {
-      console.log('Resetting player...');
-      await TrackPlayer.reset();
-      console.log('Adding tracks...');
-      // Thêm toàn bộ recentlyPlayed vào queue
-      const tracks = recentlyPlayed.map((item) => ({
-        id: item.id,
-        url: item.song_audio_url,
-        title: item.title,
-        artist: item.artist,
-        artwork: item.song_image_url ? getFullMinioUrl(item.song_image_url) : undefined,
-      }));
-      await TrackPlayer.add(tracks);
-      // Tìm index của bài hát được chọn
-      const trackIndex = tracks.findIndex((t) => t.id === track.id);
-      if (trackIndex !== -1) {
-        console.log('Skipping to track index:', trackIndex);
-        await TrackPlayer.skip(trackIndex);
-      }
-      console.log('Playing...');
-      await TrackPlayer.play();
-      console.log('Setting current track...');
-      setCurrentTrack(track);
-      console.log('Navigating to NowPlayingScreen...');
-      navigation.navigate('NowPlayingScreen', { song: track });
-    } catch (error) {
-      console.error('Error playing track:', error);
-      Alert.alert('Lỗi', 'Không thể phát bài hát');
+    // Tìm index của bài được chọn
+    const trackIndex = tracks.findIndex(t => t.id === String(song.id));
+    if (trackIndex === -1) {
+      Alert.alert('Lỗi', 'Không tìm thấy bài hát trong danh sách');
+      return;
     }
+
+    // Điều hướng sang màn NowPlaying, truyền cả playlist và index
+    navigation.navigate('NowPlayingScreen', {
+      songs: tracks,
+      initialTrackIndex: trackIndex,
+    });
   };
 
   const handlePlaylistPress = (item: any) => {
     console.log('Playlist pressed:', item);
   };
 
-  const handleLogout = async () => {
-    try {
-      await AuthService.logout();
-      await logout();
-      navigation.navigate('LoginScreen');
-    } catch (error) {
-      console.error('Lỗi đăng xuất:', error);
-      Alert.alert('Lỗi', 'Không thể đăng xuất');
-    }
-  };
 
   const SidebarBackdrop = () => (
     <Animated.View style={[styles.backdrop, { opacity: blurOpacity }]}>
@@ -259,19 +276,23 @@ const HomeScreen = () => {
         >
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Phát gần đây</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-              {recentlyPlayed.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.musicCard}
-                  onPress={() => handleSongPress(item)}
-                >
-                  <Image source={{ uri: item.albumCover }} style={styles.albumCover} />
-                  <Text style={styles.songTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.artistName} numberOfLines={1}>{item.artist}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {recentlyPlayed.length === 0 ? (
+              <Text style={styles.emptyText}>Không có bài hát nào được phát gần đây</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                {recentlyPlayed.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.musicCard}
+                    onPress={() => handleSongPress(item)}
+                  >
+                    <Image source={{ uri: item.albumCover }} style={styles.albumCover} />
+                    <Text style={styles.songTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.artistName} numberOfLines={1}>{item.artist}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -430,6 +451,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     zIndex: 999,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.6)',
+    paddingHorizontal: 16,
   },
 });
 

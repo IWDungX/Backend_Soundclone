@@ -1,6 +1,6 @@
 import apiInstance from './apiInstance';
 
-export const MINIO_BASE_URL = process.env.REACT_APP_MINIO_BASE_URL || 'http://192.168.1.2:9000';
+export const MINIO_BASE_URL = process.env.REACT_APP_MINIO_BASE_URL || 'http://192.168.22.72:9000';
 
 export const getFullMinioUrl = (relativeUrl) => {
   if (!relativeUrl) return null;

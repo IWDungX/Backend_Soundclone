@@ -10,7 +10,9 @@ import {
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import { User, Notification, Clock, Setting2, InfoCircle, Logout, ArrowRight} from 'iconsax-react-nativejs';
-
+import LoginScreen from '../screens/auth/LoginScreen';
+import { logout } from '../context/AuthContext';
+import AuthService from '../service/auth';
 // Import theme constants
 const COLORS = {
   background: '#121212',
@@ -44,6 +46,16 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({isVisible, onClose, userData, translateX}) => {
   const navigation = useNavigation();
 
+  const handleLogout = async () => {
+      try {
+        await AuthService.logout();
+        navigation.navigate('LoginScreen');
+      } catch (error) {
+        console.error('Lỗi đăng xuất:', error);
+        Alert.alert('Lỗi', 'Không thể đăng xuất');
+      }
+  };
+
   const menuItems: MenuItem[] = [
      {
       icon: <User color="#ffffff" variant="Bold"/>,
@@ -73,9 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({isVisible, onClose, userData, translat
     {
       icon: <Logout color="#ffffff" variant="Bold"/>,
       title: 'Đăng xuất',
-      onPress: () => {
-        navigation.navigate('WelcomeScreen');
-      },
+      onPress: () => handleLogout(),
     },
   ];
 
