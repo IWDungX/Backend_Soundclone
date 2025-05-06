@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,175 +9,82 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import TrackPlayer, { usePlaybackState, State, useProgress, useTrackPlayerEvents, Event, RepeatMode } from 'react-native-track-player';
-import {ArrowDown2, More, Previous, Pause, Play, Next, Shuffle, Repeat, RepeatOne} from 'iconsax-react-nativejs';
-import { useRepeatMode } from '../../hooks/useRepeatMode';
+import TrackPlayer, { useProgress, Event, useTrackPlayerEvents, RepeatMode } from 'react-native-track-player';
+import { ArrowDown2, More, Previous, Pause, Play, Next, Shuffle, Repeat, RepeateOne, Heart } from 'iconsax-react-nativejs';
+import { usePlayerStore } from '../../stores/usePlayerStore';
+import { useAuth } from '../../context/AuthContext';
+import LikeButton from '../../components/LikeButton';
 
-const REPEAT_MODES = {
-  OFF: 'off',
-  TRACK: 'track',
-  QUEUE: 'queue',
-};
-
-const RepeatOrder = [REPEAT_MODES.OFF, REPEAT_MODES.TRACK, REPEAT_MODES.QUEUE];
 
 const NowPlayingScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { songs, initialTrackIndex } = route.params as {
-      songs: Array<{
-        id: string;
-        url: string;
-        title: string;
-        artist: string;
-        artwork: string;
-      }>;
-      initialTrackIndex: number;
-  };
-  const playbackState = usePlaybackState();
-  const { position, duration } = useProgress(500); // Cập nhật mỗi 500ms
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(songs[initialTrackIndex]);
-  const [isShuffling, setIsShuffling] = useState(false);
-  const { repeatMode, changeRepeatMode } = useRepeatMode();
-
-  useTrackPlayerEvents([Event.PlaybackState], async (event) => {
-   if (event.type === Event.PlaybackState) {
-     const state = await TrackPlayer.getState();
-     console.log('Playback state changed:', state);
-     setIsPlaying(state === State.Playing);
-   }
-  });
+  const { songs: initialSongs, initialTrackIndex } = route.params;
+  const { position, duration } = useProgress(500);
+  const { currentTrackData, isPlaying, isShuffling, repeatMode, togglePlay, toggleShuffle, toggleRepeat, skipToNext, skipToPrevious, seekTo} = usePlayerStore();
 
   useEffect(() => {
-      console.log('Song từ route params:', songs);
-      console.log('Current track:', currentTrack);
-    }, [songs, currentTrack]);
+    const initQueue = async () => {
+      const currentTrackIndex = await TrackPlayer.getCurrentTrack();
+      const queue = await TrackPlayer.getQueue();
 
-  useTrackPlayerEvents([Event.RemotePlay, Event.RemotePause, Event.RemoteNext, Event.RemotePrevious], async (event) => {
-      if (event.type === Event.RemotePlay) {
-        await TrackPlayer.play();
-        setIsPlaying(true);
-      } else if (event.type === Event.RemotePause) {
-        await TrackPlayer.pause();
-        setIsPlaying(false);
-      } else if (event.type === Event.RemoteNext) {
-        await nextTrack();
-      } else if (event.type === Event.RemotePrevious) {
-        await previousTrack();
-      }
-  });
-
-  useEffect(() => {
-      const initQueue = async () => {
+      if (
+        queue.length === 0 ||
+        currentTrackIndex === null ||
+        queue[currentTrackIndex]?.id !== initialSongs[initialTrackIndex]?.id
+      ) {
         await TrackPlayer.reset();
-        await TrackPlayer.add(songs);
+        await TrackPlayer.add(initialSongs);
         await TrackPlayer.skip(initialTrackIndex);
         await TrackPlayer.play();
-      };
-      initQueue();
-    }, [songs, initialTrackIndex]);
 
-  useTrackPlayerEvents([Event.PlaybackTrackChanged], async (event) => {
-      if (event.type === Event.PlaybackTrackChanged && event.nextTrack != null) {
-        const queue = await TrackPlayer.getQueue();
-        setCurrentTrack(queue[event.nextTrack]);
+        const updatedQueue = await TrackPlayer.getQueue();
+        if (updatedQueue[initialTrackIndex]) {
+          usePlayerStore.setState({
+            currentTrack: updatedQueue[initialTrackIndex].id,
+            currentTrackData: updatedQueue[initialTrackIndex],
+            isPlaying: true,
+          });
+        }
       }
+    };
+
+    initQueue();
+  }, [initialSongs, initialTrackIndex]);
+
+  useTrackPlayerEvents([Event.PlaybackState, Event.PlaybackTrackChanged, Event.RemotePlay, Event.RemotePause, Event.RemoteNext, Event.RemotePrevious], async (event) => {
+    if (event.type === Event.PlaybackState) {
+      const state = await TrackPlayer.getState();
+      usePlayerStore.setState({ isPlaying: state === State.Playing });
+    } else if (event.type === Event.PlaybackTrackChanged && event.nextTrack != null) {
+      const queue = await TrackPlayer.getQueue();
+      if (queue[event.nextTrack]) {
+        usePlayerStore.setState({
+          currentTrack: queue[event.nextTrack].id,
+          currentTrackData: queue[event.nextTrack],
+        });
+      }
+    } else if (event.type === Event.RemotePlay) {
+      await TrackPlayer.play();
+      usePlayerStore.setState({ isPlaying: true });
+    } else if (event.type === Event.RemotePause) {
+      await TrackPlayer.pause();
+      usePlayerStore.setState({ isPlaying: false });
+    } else if (event.type === Event.RemoteNext) {
+      await skipToNext();
+    } else if (event.type === Event.RemotePrevious) {
+      await skipToPrevious();
+    }
   });
 
-
-  // Hàm play/pause
-  const togglePlay = async () => {
-    console.log('Toggle play pressed, current state:', playbackState);
-    try {
-      const state = await TrackPlayer.getState();
-      console.log('Trạng thái TrackPlayer trước khi toggle:', state);
-      const queue = await TrackPlayer.getQueue();
-      if (queue.length === 0) {
-        console.log('Hàng đợi trống, thêm current track trước khi phát');
-        const track = {
-          id: currentTrack.id,
-          url: currentTrack.url,
-          title: currentTrack.title,
-          artist: currentTrack.artist,
-          artwork: currentTrack.artwork,
-        };
-        await TrackPlayer.add(track);
-      }
-
-      if (state === State.Playing) {
-        await TrackPlayer.pause();
-        console.log('Paused');
-      } else {
-        await TrackPlayer.play();
-        console.log('Playing');
-      }
-    } catch (error) {
-      console.error('Error toggling play:', error);
-    }
-  };
-
-  const previousTrack = async () => {
-    console.log('Previous track pressed');
-    try {
-      await TrackPlayer.skipToPrevious();
-      const queue = await TrackPlayer.getQueue();
-      const newIndex = await TrackPlayer.getCurrentTrack();
-      if (newIndex !== null && queue[newIndex]) {
-        setCurrentTrack(queue[newIndex]);
-        console.log('Skipped to previous track:', queue[newIndex]);
-      } else {
-        console.log('No previous track available');
-      }
-    } catch (error) {
-      console.error('Error skipping to previous track:', error);
-    }
-  };
-
-  const nextTrack = async () => {
-    console.log('Next track pressed');
-    try {
-      await TrackPlayer.skipToNext();
-      const queue = await TrackPlayer.getQueue();
-      const newIndex = await TrackPlayer.getCurrentTrack();
-      if (newIndex !== null && queue[newIndex]) {
-        setCurrentTrack(queue[newIndex]);
-        console.log('Skipped to next track:', queue[newIndex]);
-      } else {
-        console.log('No next track available');
-      }
-    } catch (error) {
-      console.error('Error skipping to next track:', error);
-    }
-  };
-
-
-  const toggleRepeat = () => {
-    if (repeatMode === null) return;
-
-    const modes = [RepeatMode.Off, RepeatMode.Track, RepeatMode.Queue];
-    const currentIndex = modes.indexOf(repeatMode);
-    const nextMode = modes[(currentIndex + 1) % modes.length];
-    changeRepeatMode(nextMode);
-  };
-
-  const ShuffleSongs = async () => {
-    let queue = await TrackPlayer.getQueue();
-    console.log('Current queue:', queue);
-    await TrackPlayer.reset();
-    queue = queue.sort(() => Math.random() - 0.5);
-    await TrackPlayer.add(queue);
-    await TrackPlayer.play();
-  };
-
-  const formatTime = (seconds: number) => {
+  const formatTime = (seconds) => {
     if (!seconds) return '0:00';
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  if (!currentTrack) {
+  if (!currentTrackData) {
     return (
       <SafeAreaView style={styles.container}>
         <Text style={styles.emptyText}>Không có bài hát nào đang phát</Text>
@@ -188,27 +95,25 @@ const NowPlayingScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => {
-          console.log('Back button pressed');
-          navigation.goBack();
-        }}>
-          <ArrowDown2 color="#ffffff"/>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
+          <ArrowDown2 color="#ffffff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>ĐANG PHÁT</Text>
         <TouchableOpacity style={styles.headerButton} onPress={() => console.log('More button pressed')}>
-          <More color="#ffffff"/>
+          <More color="#ffffff" />
         </TouchableOpacity>
       </View>
 
       <View style={styles.artworkContainer}>
-        <Image source={{ uri: currentTrack.artwork }} style={styles.artwork} />
+        <Image source={{ uri: currentTrackData.artwork }} style={styles.artwork} />
       </View>
 
       <View style={styles.trackInfoContainer}>
         <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1}>{currentTrack.title}</Text>
+          <Text style={styles.title} numberOfLines={1}>{currentTrackData.title}</Text>
+          <LikeButton />
         </View>
-        <Text style={styles.artist} numberOfLines={1}>{currentTrack.artist}</Text>
+        <Text style={styles.artist} numberOfLines={1}>{currentTrackData.artist}</Text>
       </View>
 
       <View style={styles.progressContainer}>
@@ -217,10 +122,7 @@ const NowPlayingScreen = () => {
           value={position}
           minimumValue={0}
           maximumValue={duration}
-          onSlidingComplete={(value) => {
-            console.log('Seeking to:', value);
-            TrackPlayer.seekTo(value);
-          }}
+          onSlidingComplete={seekTo}
           minimumTrackTintColor="#1DB954"
           maximumTrackTintColor="#555"
           thumbTintColor="#fff"
@@ -232,52 +134,40 @@ const NowPlayingScreen = () => {
       </View>
 
       <View style={styles.controlsContainer}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 }}>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={() => {
-              setIsShuffling(!isShuffling);
-              ShuffleSongs();
-            }}
-            activeOpacity={0.7}
-          >
-            <Shuffle size="28" color={isShuffling ? '#1DB954' : '#ffffff'} variant="Bold" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.controlButton} onPress={toggleShuffle} activeOpacity={0.7}>
+          <Shuffle size="30" color={isShuffling ? '#1DB954' : '#ffffff'} variant="Bold" />
+        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.controlButton} onPress={previousTrack}>
-          <Previous color="#ffffff" size={28}/>
+        <TouchableOpacity style={styles.controlButton} onPress={skipToPrevious}>
+          <Previous color="#ffffff" size={30} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.playPauseButton} onPress={togglePlay}>
           {isPlaying ? (
-              <Pause size="40" color="#fff" />
+            <Pause size="40" color="#fff" />
           ) : (
-              <Play size="40" color="#fff" />
+            <Play size="40" color="#fff" />
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.controlButton} onPress={nextTrack}>
-          <Next color="#ffffff"/>
+        <TouchableOpacity style={styles.controlButton} onPress={skipToNext}>
+          <Next color="#ffffff" size={30} />
         </TouchableOpacity>
-        <TouchableOpacity
-            style={styles.controlButton}
-            onPress={toggleRepeat}
-            activeOpacity={0.7}
-        >
-          {repeatMode === REPEAT_MODES.TRACK ? (
-              <RepeatOne size="28" color="#1DB954" variant="Bold" />
+        <TouchableOpacity style={styles.controlButton} onPress={toggleRepeat} activeOpacity={0.7}>
+          {repeatMode === RepeatMode.Track ? (
+            <RepeateOne size="30" color="#1DB954" variant="Bold" />
           ) : (
-              <Repeat
-                size="28"
-                color={repeatMode === REPEAT_MODES.QUEUE ? '#1DB954' : repeatMode === REPEAT_MODES.OFF ? '#ffffff' : '#ffffff'}
-                variant="Bold"
-              />
-        )}
+            <Repeat
+              size="30"
+              color={repeatMode === RepeatMode.Queue ? '#1DB954' : '#ffffff'}
+              variant="Bold"
+            />
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 };
 
+// Giữ nguyên styles như cũ
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -1,7 +1,7 @@
 import EncryptedStorage from 'react-native-encrypted-storage';
 import axios from 'axios';
 
-const BASE_URL = 'http://192.168.22.72:15000/api';
+const BASE_URL = 'http://192.168.214.72:15000/api';
 
 const AuthService = {
   async getToken() {

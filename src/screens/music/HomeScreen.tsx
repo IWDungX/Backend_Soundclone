@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Sidebar from '../../components/Sidebar';
-import MusicPlayerBar from '../../components/MusicPlayerBar';
 import { getSongs } from '../../service/apiSong';
 import { getFullMinioUrl } from '../../service/minioUrl';
 import AuthService from '../../service/auth';
 import TrackPlayer, { Event, useTrackPlayerEvents } from 'react-native-track-player';
+import { usePlayerStore } from '../../stores/usePlayerStore';
 import { AuthContext } from '../../context/AuthContext';
 
 const MOCK_DATA = {
@@ -73,14 +73,12 @@ const MOCK_DATA = {
 
 const HomeScreen = () => {
   const navigation = useNavigation();
-  const { logout } = useContext(AuthContext);
+  const { logout } = React.useContext(AuthContext);
   const [greeting, setGreeting] = useState('');
   const [userData, setUserData] = useState(MOCK_DATA.user);
-  const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [likedSongs, setLikedSongs] = useState([]);
   const [featuredPlaylists, setFeaturedPlaylists] = useState(MOCK_DATA.featuredPlaylists);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(null);
+  const { recentlyPlayed, currentTrackData, isSidebarVisible, setRecentlyPlayed, setCurrentTrack, setSidebarVisible } = usePlayerStore();
   const translateX = useRef(new Animated.Value(1000)).current;
   const blurOpacity = useRef(new Animated.Value(0)).current;
 
@@ -88,19 +86,18 @@ const HomeScreen = () => {
     const fetchData = async () => {
       try {
         const songsData = await getSongs();
-        console.log('Songs data from API:', songsData); // Log dữ liệu API
+        console.log('Songs data from API:', songsData);
         const formattedSongs = songsData.map((song) => ({
           id: song.song_id,
           title: song.song_title || 'Unknown Title',
           artist: song.Artist?.artist_name || 'Unknown Artist',
-          song_audio_url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
-          song_image_url: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+          artwork: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+          url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
           albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
           duration: song.song_duration || '4:00',
-          url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
           lastPlayed: song.song_createAt || new Date().toISOString(),
-        })).filter(song => song.url); // Lọc các bài hát có url hợp lệ
-        console.log('Formatted songs:', formattedSongs); // Log dữ liệu đã format
+        })).filter(song => song.url);
+        console.log('Formatted songs:', formattedSongs);
         setRecentlyPlayed(formattedSongs);
       } catch (error) {
         console.error('Lỗi khi lấy dữ liệu từ API:', error);
@@ -109,17 +106,15 @@ const HomeScreen = () => {
           try {
             const newToken = await AuthService.refreshToken();
             if (newToken) {
-              // Thử lại API với token mới
               const songsData = await getSongs();
               const formattedSongs = songsData.map((song) => ({
                 id: song.song_id,
                 title: song.song_title || 'Unknown Title',
                 artist: song.Artist?.artist_name || 'Unknown Artist',
-                song_audio_url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
-                song_image_url: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+                artwork: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+                url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
                 albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
                 duration: song.song_duration || '4:00',
-                url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
                 lastPlayed: song.song_createAt || new Date().toISOString(),
               })).filter(song => song.url);
               setRecentlyPlayed(formattedSongs);
@@ -139,7 +134,7 @@ const HomeScreen = () => {
     };
 
     fetchData();
-  }, [navigation, logout]);
+  }, [navigation, logout, setRecentlyPlayed]);
 
   useEffect(() => {
     const syncTrackPlayer = async () => {
@@ -147,14 +142,14 @@ const HomeScreen = () => {
         const queue = await TrackPlayer.getQueue();
         const currentTrackIndex = await TrackPlayer.getCurrentTrack();
         if (currentTrackIndex !== null && queue[currentTrackIndex]) {
-          setCurrentTrack(queue[currentTrackIndex]);
+          setCurrentTrack(queue[currentTrackIndex].id, queue[currentTrackIndex]);
         }
       } catch (error) {
         console.error('Error syncing TrackPlayer:', error);
       }
     };
     syncTrackPlayer();
-  }, []);
+  }, [setCurrentTrack]);
 
   useEffect(() => {
     const getGreetingByTime = () => {
@@ -177,11 +172,11 @@ const HomeScreen = () => {
       const queue = await TrackPlayer.getQueue();
       const nextTrackIndex = event.nextTrack;
       if (nextTrackIndex >= 0 && nextTrackIndex < queue.length) {
-        setCurrentTrack(queue[nextTrackIndex]);
+        setCurrentTrack(queue[nextTrackIndex].id, queue[nextTrackIndex]);
         console.log('Current track updated:', queue[nextTrackIndex]);
       }
     } else if (event.type === Event.PlaybackQueueEnded) {
-      setCurrentTrack(null);
+      setCurrentTrack(null, null);
       console.log('Queue ended, cleared current track');
     }
   });
@@ -199,9 +194,9 @@ const HomeScreen = () => {
           duration: 300,
           useNativeDriver: true,
         }),
-      ]).start(() => setIsSidebarVisible(false));
+      ]).start(() => setSidebarVisible(false));
     } else {
-      setIsSidebarVisible(true);
+      setSidebarVisible(true);
       Animated.parallel([
         Animated.timing(translateX, {
           toValue: 0,
@@ -217,15 +212,14 @@ const HomeScreen = () => {
     }
   };
 
-  const handleSongPress = async (song: any) => {
-    // Build full playlist
+  const handleSongPress = async (song) => {
     const tracks = recentlyPlayed
       .map((item) => ({
         id: String(item.id),
-        url: item.song_audio_url!,
+        url: item.url,
         title: item.title,
         artist: item.artist,
-        artwork: item.song_image_url!,
+        artwork: item.artwork,
       }))
       .filter(t => t.url);
 
@@ -234,24 +228,21 @@ const HomeScreen = () => {
       return;
     }
 
-    // Tìm index của bài được chọn
     const trackIndex = tracks.findIndex(t => t.id === String(song.id));
     if (trackIndex === -1) {
       Alert.alert('Lỗi', 'Không tìm thấy bài hát trong danh sách');
       return;
     }
 
-    // Điều hướng sang màn NowPlaying, truyền cả playlist và index
     navigation.navigate('NowPlayingScreen', {
       songs: tracks,
       initialTrackIndex: trackIndex,
     });
   };
 
-  const handlePlaylistPress = (item: any) => {
+  const handlePlaylistPress = (item) => {
     console.log('Playlist pressed:', item);
   };
-
 
   const SidebarBackdrop = () => (
     <Animated.View style={[styles.backdrop, { opacity: blurOpacity }]}>
@@ -332,8 +323,6 @@ const HomeScreen = () => {
           </View>
         </ScrollView>
       </View>
-
-      <MusicPlayerBar currentTrack={currentTrack} />
 
       {isSidebarVisible && <SidebarBackdrop />}
       {isSidebarVisible && (

@@ -6,48 +6,30 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
-  StyleSheet,
+  StyleSheet,g
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Timer, MusicSquareSearch, CloseCircle } from 'iconsax-react-nativejs';
+import { SearchNormal1, CloseCircle, Play } from 'iconsax-react-nativejs';
+import TrackPlayer, { Event, useTrackPlayerEvents } from 'react-native-track-player';
+import apiSearch from '../../service/apiSearch';
+import { usePlayerStore } from '../../stores/usePlayerStore';
+import { getFullMinioUrl } from '../../service/minioUrl';
+import { useAuth } from '../../context/AuthContext';
 
 const SearchingScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
   const [searchHistory, setSearchHistory] = useState([]);
+  const { logout } = useAuth();
+  const { setCurrentTrack, togglePlay } = usePlayerStore(); // Lấy hàm từ usePlayerStore
 
   const SEARCH_HISTORY_KEY = 'search_history';
-  const MAX_HISTORY_ITEMS = 10;
-
-  const mockSearchResults = {
-    songs: [
-      {
-        id: '1',
-        title: 'Hãy Trao Cho Anh',
-        artist: 'Sơn Tùng M-TP',
-        artwork: 'https://picsum.photos/seed/song1/50/50',
-        duration: '4:05',
-      },
-      {
-        id: '2',
-        title: 'Chúng Ta Của Hiện Tại',
-        artist: 'Sơn Tùng M-TP',
-        artwork: 'https://picsum.photos/seed/song2/50/50',
-        duration: '3:52',
-      },
-    ],
-    artists: [
-      {
-        id: '1',
-        name: 'Sơn Tùng M-TP',
-        image: 'https://picsum.photos/seed/artist1/50/50',
-        followers: '1.2M',
-      },
-    ],
-  };
+  const MAX_HISTORY_ITEMS = 5;
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -63,7 +45,7 @@ const SearchingScreen = () => {
     loadHistory();
   }, []);
 
-  const saveSearchHistory = async (query: string) => {
+  const saveSearchHistory = async (query) => {
     const updatedHistory = [
       query,
       ...searchHistory.filter((item) => item !== query),
@@ -88,208 +70,366 @@ const SearchingScreen = () => {
     }
   };
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (query) => {
     setSearchQuery(query);
-    if (query.trim() === '') {
+    setSuggestions([]);
+    if (!query.trim()) {
       setSearchResults(null);
       return;
     }
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setSearchResults(mockSearchResults);
+      const results = await apiSearch.search(query);
+      setSearchResults(results);
       await saveSearchHistory(query);
     } catch (error) {
       console.error('Search error:', error);
+      if (error.message.includes('token')) {
+        await logout();
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const renderHistoryItem = ({ item }: { item: string }) => (
-    <View style={styles.historyItem}>
-      <Timer color="#ffffff"/>
+  const fetchSuggestions = async (query) => {
+    setSearchQuery(query);
+    if (query.trim().length < 1) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      const suggestions = await apiSearch.getSuggestions(query);
+      setSuggestions(suggestions);
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+      setSuggestions([]);
+      if (error.message.includes('token')) {
+        await logout();
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      }
+    }
+  };
+
+  const renderSuggestionItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.suggestionItem}
+      onPress={() => handleSearch(item.value)}
+    >
+      <SearchNormal1 color="#b3b3b3" />
+      <Text style={styles.suggestionText}>{item.value}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderHistoryItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.historyItem}
+      onPress={() => handleSearch(item)}
+    >
+      <Text style={styles.historyText}>{item}</Text>
       <TouchableOpacity
-        style={styles.historyTextContainer}
-        onPress={() => handleSearch(item)}
-      >
-        <Text style={styles.historyText}>{item}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={async () => {
+        onPress={(e) => {
+          e.stopPropagation();
           const newHistory = searchHistory.filter((h) => h !== item);
           setSearchHistory(newHistory);
-          await AsyncStorage.setItem(
-            SEARCH_HISTORY_KEY,
-            JSON.stringify(newHistory)
-          );
+          AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory));
         }}
       >
-        <CloseCircle color="red"/>
+        <CloseCircle color="#b3b3b3" />
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 
-  const renderSongItem = ({ item }: { item: any }) => (
-    <View style={styles.songItem}>
-      <Image source={{ uri: item.artwork }} style={styles.songArtwork} />
-      <View style={styles.songInfo}>
-        <Text style={styles.songTitle}>{item.title}</Text>
-        <Text style={styles.artistName}>{item.artist}</Text>
+  const renderSongItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.resultItem}
+      onPress={async () => {
+        try {
+          // Dừng và reset TrackPlayer
+          await TrackPlayer.stop();
+          await TrackPlayer.reset();
+
+          // Thiết lập bài hát mới
+          const songData = {
+            id: item.song_id,
+            title: item.song_title,
+            artist: item.artist_name,
+            artwork: getFullMinioUrl(item.song_image_url),
+            url: getFullMinioUrl(item.song_audio_url), // Đảm bảo URL hợp lệ
+          };
+
+          // Thêm bài hát vào queue của TrackPlayer
+          await TrackPlayer.add({
+            id: songData.id,
+            url: songData.url,
+            title: songData.title,
+            artist: songData.artist,
+            artwork: songData.artwork,
+          });
+
+          // Cập nhật trạng thái trong store
+          await setCurrentTrack(songData.id, songData);
+
+          // Phát bài hát
+          await togglePlay();
+        } catch (error) {
+          console.error("Error playing song:", error);
+          Alert.alert('Lỗi', 'Không thể phát bài hát này. Vui lòng thử lại.');
+        }
+      }}
+    >
+      <Image source={{ uri: getFullMinioUrl(item.song_image_url) }} style={styles.artwork} />
+      <View style={styles.info}>
+        <Text style={styles.title}>{item.song_title}</Text>
+        <Text style={styles.subtitle}>{item.artist_name}</Text>
       </View>
-      <Text style={styles.duration}>{item.duration}</Text>
+      <Play color="#1DB954" size={20} />
+    </TouchableOpacity>
+  );
+
+  const renderArtistItem = ({ item }) => (
+    <View style={styles.resultItem}>
+      <Image source={{ uri: getFullMinioUrl(item.image_url) }} style={styles.artwork} />
+      <View style={styles.info}>
+        <Text style={styles.title}>{item.artist_name}</Text>
+      </View>
     </View>
   );
 
-  const renderArtistItem = ({ item }: { item: any }) => (
-    <View style={styles.songItem}>
-      <Image source={{ uri: item.image }} style={styles.songArtwork} />
-      <View style={styles.songInfo}>
-        <Text style={styles.songTitle}>{item.name}</Text>
-        <Text style={styles.artistName}>{item.followers} người theo dõi</Text>
+  const renderPlaylistItem = ({ item }) => (
+    <View style={styles.resultItem}>
+      <View style={styles.info}>
+        <Text style={styles.title}>{item.playlist_title}</Text>
       </View>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.searchContainer}>
-        <MusicSquareSearch color="black" variant="Outline"/>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Tìm kiếm bài hát, nghệ sĩ..."
-          placeholderTextColor="#888"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onFocus={() => setIsInputFocused(true)}
-          onSubmitEditing={() => handleSearch(searchQuery)}
-          returnKeyType="search"
-        />
-        {searchQuery ? (
-          <TouchableOpacity
-            onPress={() => {
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.searchBar}>
+          <SearchNormal1 color="#b3b3b3" size={20} />
+          <TextInput
+            style={styles.input}
+            placeholder="Tìm kiếm bài hát, nghệ sĩ, hoặc playlist"
+            placeholderTextColor="#b3b3b3"
+            value={searchQuery}
+            onChangeText={fetchSuggestions}
+            onSubmitEditing={() => handleSearch(searchQuery)}
+            returnKeyType="search"
+            autoFocus
+          />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => {
               setSearchQuery('');
               setSearchResults(null);
-            }}
-          >
-            <CloseCircle color="red"/>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      {isInputFocused && searchHistory.length > 0 ? (
-        <View style={styles.historyContainer}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.historyTitle}>Lịch sử tìm kiếm</Text>
-            <TouchableOpacity onPress={clearSearchHistory}>
-              <Text style={styles.clearHistoryText}>Xóa tất cả</Text>
+              setSuggestions([]);
+            }}>
+              <CloseCircle color="#b3b3b3" size={20} />
             </TouchableOpacity>
-          </View>
-          <FlatList
-            data={searchHistory}
-            renderItem={renderHistoryItem}
-            keyExtractor={(item, index) => index.toString()}
-            scrollEnabled={false}
-          />
+          ) : null}
         </View>
-      ) : loading ? (
-        <Text style={styles.loadingText}>Đang tải...</Text>
-      ) : searchResults ? (
-        <FlatList
-          data={[
-            { type: 'songs', data: searchResults.songs },
-            { type: 'artists', data: searchResults.artists },
-          ]}
-          keyExtractor={(item) => item.type}
-          renderItem={({ item }) => (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                {item.type === 'songs' ? 'Bài hát' : 'Nghệ sĩ'}
-              </Text>
-              <FlatList
-                data={item.data}
-                renderItem={
-                  item.type === 'songs' ? renderSongItem : renderArtistItem
-                }
-                keyExtractor={(subItem) => subItem.id}
-                scrollEnabled={false}
-              />
+
+        {searchQuery && suggestions.length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            <FlatList
+              data={suggestions}
+              renderItem={renderSuggestionItem}
+              keyExtractor={(item, index) => index.toString()}
+              keyboardShouldPersistTaps="handled"
+            />
+          </View>
+        )}
+
+        {!searchQuery && searchHistory.length > 0 && (
+          <View style={styles.historyContainer}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.sectionTitle}>Gần đây</Text>
+              <TouchableOpacity onPress={clearSearchHistory}>
+                <Text style={styles.clearText}>Xóa tất cả</Text>
+              </TouchableOpacity>
             </View>
-          )}
-          contentContainerStyle={{ paddingBottom: 80 }}
-        />
-      ) : !isInputFocused ? (
-        <Text style={styles.emptyState}>
-          Tìm kiếm bài hát hoặc nghệ sĩ yêu thích của bạn
-        </Text>
-      ) : null}
-    </SafeAreaView>
+            <FlatList
+              data={searchHistory}
+              renderItem={renderHistoryItem}
+              keyExtractor={(item, index) => index.toString()}
+              horizontal={false}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+
+        {loading && <Text style={styles.loading}>Đang tải...</Text>}
+        {searchResults && (
+          <View style={styles.resultsContainer}>
+            {searchResults.songs.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Bài hát</Text>
+                <FlatList
+                  data={searchResults.songs}
+                  renderItem={renderSongItem}
+                  keyExtractor={(item) => item.song_id}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                />
+              </View>
+            )}
+            {searchResults.artists.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Nghệ sĩ</Text>
+                <FlatList
+                  data={searchResults.artists}
+                  renderItem={renderArtistItem}
+                  keyExtractor={(item) => item.artist_id}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                />
+              </View>
+            )}
+            {searchResults.playlists.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Playlist</Text>
+                <FlatList
+                  data={searchResults.playlists}
+                  renderItem={renderPlaylistItem}
+                  keyExtractor={(item) => item.playlist_id}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                />
+              </View>
+            )}
+          </View>
+        )}
+        {!searchQuery && !searchResults && !loading && (
+          <Text style={styles.placeholder}>
+            Tìm kiếm bài hát, nghệ sĩ hoặc playlist yêu thích của bạn
+          </Text>
+        )}
+      </SafeAreaView>
+    </TouchableWithoutFeedback>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  searchContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+    paddingTop: 10,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    margin: 16,
-    borderRadius: 8,
+    backgroundColor: '#282828',
+    borderRadius: 4,
     paddingHorizontal: 12,
-    height: 44,
+    marginHorizontal: 16,
+    height: 40,
   },
-  searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: {
+  input: {
     flex: 1,
+    color: '#fff',
     fontSize: 16,
-    color: '#000',
+    marginLeft: 8,
   },
-  clearIcon: { fontSize: 16, padding: 4 },
-  historyContainer: { margin: 16 },
+  suggestionsContainer: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    backgroundColor: '#282828',
+    borderRadius: 4,
+    maxHeight: 200,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  suggestionText: {
+    color: '#fff',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  historyContainer: {
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
   historyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  historyTitle: { fontSize: 16, fontWeight: '500', color: '#fff' },
-  clearHistoryText: { fontSize: 14, color: '#1DB954' },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  clearText: {
+    color: '#1DB954',
+    fontSize: 14,
+  },
   historyItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#333',
+    borderRadius: 4,
+    marginBottom: 8,
   },
-  historyIcon: { fontSize: 16, marginHorizontal: 12 },
-  historyTextContainer: { flex: 1 },
-  historyText: { fontSize: 16, color: '#fff' },
-  section: { marginBottom: 20, paddingHorizontal: 16 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  historyText: {
     color: '#fff',
-    marginBottom: 12,
+    fontSize: 16,
+    marginLeft: 8,
+    flex: 1,
   },
-  songItem: {
+  resultsContainer: {
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  resultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    padding: 8,
+    backgroundColor: '#282828',
+    borderRadius: 4,
+    marginRight: 10,
+    width: 200,
   },
-  songArtwork: { width: 50, height: 50, borderRadius: 4, marginRight: 12 },
-  songInfo: { flex: 1 },
-  songTitle: { fontSize: 16, fontWeight: '500', color: '#fff' },
-  artistName: {
+  artwork: {
+    width: 50,
+    height: 50,
+    borderRadius: 4,
+    marginRight: 12,
+  },
+  info: {
+    flex: 1,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  subtitle: {
+    color: '#b3b3b3',
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 2,
   },
-  duration: { fontSize: 14, color: 'rgba(255,255,255,0.6)' },
-  emptyState: {
+  loading: {
+    color: '#fff',
     textAlign: 'center',
-    padding: 32,
-    color: 'rgba(255,255,255,0.6)',
+    marginTop: 20,
+  },
+  placeholder: {
+    color: '#b3b3b3',
+    textAlign: 'center',
+    marginTop: 50,
     fontSize: 16,
   },
-  loadingText: { textAlign: 'center', marginTop: 20, color: '#fff' },
 });
 
 export default SearchingScreen;

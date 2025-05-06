@@ -5,24 +5,7 @@ import AuthService from './auth';
 export const getSongs = async () => {
   try {
     const token = await AuthService.getToken();
-    const response = await apiInstance.get('/songs', { token });
-    // Kiểm tra dữ liệu trả về
-    if (!response || !Array.isArray(response)) {
-      console.error('Dữ liệu bài hát không hợp lệ:', response);
-      return [];
-    }
-    return response;
-  } catch (error) {
-    console.error('Lỗi khi gọi API getSongs:', error);
-    throw error;
-  }
-};
-
-// API lấy danh sách bài hát đã thích
-export const getLikedSongs = async () => {
-  try {
-    const token = await AuthService.getToken();
-    const response = await apiInstance.get('/songs/liked', {
+    const response = await apiInstance.get('/songs', {
       token,
       onTokenExpired: async () => {
         try {
@@ -38,14 +21,22 @@ export const getLikedSongs = async () => {
         }
       },
     });
+
     // Kiểm tra dữ liệu trả về
     if (!response || !Array.isArray(response)) {
-      console.error('Dữ liệu bài hát đã thích không hợp lệ:', response);
+      console.error('Dữ liệu bài hát không hợp lệ:', response);
       return [];
     }
-    return response;
+
+    // Đảm bảo mỗi bài hát có trường liked
+    const songsWithLiked = response.map(song => ({
+      ...song,
+      liked: song.liked !== undefined ? song.liked : false, // Đảm bảo liked luôn có giá trị
+    }));
+
+    return songsWithLiked;
   } catch (error) {
-    console.error('Lỗi khi gọi API getLikedSongs:', error);
+    console.error('Lỗi khi gọi API getSongs:', error);
     throw error;
   }
 };

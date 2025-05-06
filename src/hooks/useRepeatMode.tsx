@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
-import TrackPlayer from 'react-native-track-player';
+import TrackPlayer, { RepeatMode } from 'react-native-track-player';
 
 export const useRepeatMode = () => {
-    const [repeatMode, setRepeatMode] = useState(null);
+  const [repeatMode, setRepeatMode] = useState(null);
 
-    const changeRepeatMode = useCallback(async (repeatMode) => {
-        await TrackPlayer.setRepeatMode(repeatMode);
-    }, []);
+  const changeRepeatMode = useCallback(async (mode) => {
+    await TrackPlayer.setRepeatMode(mode);
+    setRepeatMode(mode);
+  }, []);
 
-    useEffect(() => {
-        TrackPlayer.getRepeatMode().then(setRepeatMode);
-
-        setRepeatMode(repeatMode);
-    }, []);
-
-    return {
-        repeatMode,
-        changeRepeatMode,
+  useEffect(() => {
+    const fetchRepeatMode = async () => {
+      const mode = await TrackPlayer.getRepeatMode();
+      setRepeatMode(mode);
     };
+    fetchRepeatMode();
+  }, []);
+
+  return {
+    repeatMode,
+    changeRepeatMode,
+  };
 };

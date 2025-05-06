@@ -1,114 +1,111 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import TrackPlayer, { usePlaybackState, State, useProgress, Event, useTrackPlayerEvents } from 'react-native-track-player';
+import TrackPlayer, { useProgress, Event, useTrackPlayerEvents, State } from 'react-native-track-player';
 import { Previous, Pause, Play, Next } from 'iconsax-react-nativejs';
-import NowPlayingScreen from '../screens/music/NowPlayingScreen';
+import { usePlayerStore } from '../stores/usePlayerStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const MusicPlayerBar = ({ currentTrack }) => {
+const MusicPlayerBar = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const playbackState = usePlaybackState();
   const { position, duration } = useProgress();
-  const isPlaying = playbackState === State.Playing;
+  const { currentTrackData, isPlaying, togglePlay, skipToNext, skipToPrevious } = usePlayerStore();
 
-  if (!currentTrack || route.name === 'NowPlayingScreen') return null;
+  // Lắng nghe sự kiện từ TrackPlayer
+  useTrackPlayerEvents([Event.PlaybackState, Event.RemotePlay, Event.RemotePause], async (event) => {
+    if (event.type === Event.PlaybackState) {
+      const state = await TrackPlayer.getState();
+      usePlayerStore.setState({ isPlaying: state === State.Playing });
+      console.log('Playback state:', state);
+    } else if (event.type === Event.RemotePlay) {
+      await TrackPlayer.play();
+      usePlayerStore.setState({ isPlaying: true });
+    } else if (event.type === Event.RemotePause) {
+      await TrackPlayer.pause();
+      usePlayerStore.setState({ isPlaying: false });
+    }
+  });
 
-  const formatTime = (seconds: number) => {
+  // Đồng bộ trạng thái khi currentTrackData thay đổi
+  useEffect(() => {
+    const syncState = async () => {
+      if (currentTrackData) {
+        const state = await TrackPlayer.getState();
+        usePlayerStore.setState({ isPlaying: state === State.Playing });
+      }
+    };
+    syncState();
+  }, [currentTrackData]);
+
+  if (!currentTrackData || route.name === 'NowPlayingScreen') return null;
+
+  const formatTime = (seconds) => {
     if (!seconds) return '0:00';
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const handlePress = () => {
-    navigation.navigate('NowPlayingScreen', { song: currentTrack });
-  };
-
-  const togglePlay = async () => {
-    if (isPlaying) {
-      await TrackPlayer.pause();
-    } else {
-      await TrackPlayer.play();
-    }
-  };
-
-  const nextTrack = async () => {
-    try {
-      await TrackPlayer.skipToNext();
-    } catch (error) {
-      console.error('Error skipping to next track:', error);
-    }
-  };
-
-  const previousTrack = async () => {
-    try {
-      await TrackPlayer.skipToPrevious();
-    } catch (error) {
-      console.error('Error skipping to previous track:', error);
-    }
-  };
-
   const progress = duration ? (position / duration) * 100 : 0;
+
+  const handlePress = () => {
+    navigation.navigate('NowPlayingScreen', { songs: [currentTrackData], initialTrackIndex: 0 });
+  };
 
   return (
     <TouchableOpacity onPress={handlePress} style={styles.container} activeOpacity={0.9}>
-      <View style={styles.progressBar}>
-        <View style={[styles.progressFill, { width: `${progress}%` }]} />
-      </View>
       <View style={styles.content}>
         <Image
-          source={{ uri: currentTrack.artwork }}
+          source={{ uri: currentTrackData.artwork }}
           style={styles.artwork}
           defaultSource={require('../assets/images/wibu.png')}
         />
         <View style={styles.trackInfo}>
           <Text style={styles.title} numberOfLines={1}>
-            {currentTrack.title}
+            {currentTrackData.title}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
-            {currentTrack.artist}
+            {currentTrackData.artist}
           </Text>
         </View>
         <View style={styles.controls}>
           <TouchableOpacity
             onPress={(e) => {
               e.stopPropagation();
-              previousTrack();
+              skipToPrevious();
             }}
             activeOpacity={0.7}
             style={styles.controlButton}
           >
-            <Previous color="#ffffff" size={28}/>
+            <Previous color="#ffffff" size={28} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async (e) => {
+              e.stopPropagation();
+              await togglePlay();
+            }}
+            activeOpacity={0.7}
+            style={styles.controlButton}
+          >
+            {isPlaying ? <Pause size="35" color="#fff" /> : <Play size="35" color="#fff" />}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(e) => {
               e.stopPropagation();
-              togglePlay();
+              skipToNext();
             }}
             activeOpacity={0.7}
             style={styles.controlButton}
           >
-          {isPlaying ? (
-              <Pause size="35" color="#fff" />
-          ) : (
-              <Play size="35" color="#fff" />
-          )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation();
-              nextTrack();
-            }}
-            activeOpacity={0.7}
-            style={styles.controlButton}
-          >
-            <Next color="#ffffff" size={28}/>
+            <Next color="#ffffff" size={28} />
           </TouchableOpacity>
         </View>
+      </View>
+
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: `${progress}%` }]} />
       </View>
     </TouchableOpacity>
   );
@@ -126,10 +123,15 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
     zIndex: 1000,
+    borderRadius: 12,
+    marginLeft: 5,
+    marginRight: 5,
   },
   progressBar: {
     height: 2,
     backgroundColor: 'rgba(255,255,255,0.1)',
+    marginLeft: 5,
+    marginRight: 5,
   },
   progressFill: {
     height: '100%',

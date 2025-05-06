@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,20 @@ import {
   StyleSheet,
   Modal,
 } from 'react-native';
+import usePlaylistStore from '../../stores/usePlaylistStore';
 
 const PlaylistScreen = () => {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
-  const [playlists, setPlaylists] = useState([]);
+
+  const { playlists, isLoading, fetchPlaylists, createPlaylist } = usePlaylistStore();
+
+  // Lấy danh sách playlist khi màn hình được tải
+  useEffect(() => {
+    fetchPlaylists();
+  }, [fetchPlaylists]);
 
   const toggleSearch = () => {
     setIsSearchVisible(!isSearchVisible);
@@ -29,22 +35,22 @@ const PlaylistScreen = () => {
     setIsModalVisible(true);
   };
 
-  const handleSubmitPlaylist = () => {
+  const handleSubmitPlaylist = async () => {
     if (playlistName.trim()) {
-      const newPlaylist = {
-        id: Date.now().toString(),
-        name: playlistName.trim(),
-        isPublic,
-        songCount: 0,
-        coverImage: 'https://picsum.photos/200/200',
-        createdAt: new Date().toISOString(),
-      };
-      setPlaylists([...playlists, newPlaylist]);
-      setIsModalVisible(false);
-      setPlaylistName('');
-      setIsPublic(false);
+      try {
+        await createPlaylist(playlistName.trim());
+        setIsModalVisible(false);
+        setPlaylistName('');
+      } catch (error) {
+        // Lỗi đã được xử lý trong store, không cần làm gì thêm
+      }
     }
   };
+
+  // Lọc playlist theo searchQuery
+  const filteredPlaylists = playlists.filter((item) =>
+    item.playlist_title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <View style={styles.container}>
@@ -78,20 +84,29 @@ const PlaylistScreen = () => {
         )}
       </View>
       <ScrollView style={styles.content}>
-        {playlists.length > 0 ? (
-          playlists.map((item) => (
+        {isLoading ? (
+          <Text style={styles.emptyState}>Đang tải...</Text>
+        ) : filteredPlaylists.length > 0 ? (
+          filteredPlaylists.map((item) => (
             <View key={item.id} style={styles.playlistItem}>
-              <Image source={{ uri: item.coverImage }} style={styles.playlistCover} />
+              <Image
+                source={{ uri: item.coverImage || 'https://picsum.photos/200/200' }}
+                style={styles.playlistCover}
+              />
               <View style={styles.playlistInfo}>
-                <Text style={styles.playlistName}>{item.name}</Text>
+                <Text style={styles.playlistName}>{item.playlist_title}</Text>
                 <Text style={styles.playlistDetails}>
-                  {item.songCount} bài hát • {item.isPublic ? 'Công khai' : 'Riêng tư'}
+                  {item.songs?.length || 0} bài hát
                 </Text>
               </View>
             </View>
           ))
         ) : (
-          <Text style={styles.emptyState}>Chưa có playlist nào. Hãy tạo playlist đầu tiên của bạn!</Text>
+          <Text style={styles.emptyState}>
+            {searchQuery
+              ? 'Không tìm thấy playlist nào'
+              : 'Chưa có playlist nào. Hãy tạo playlist đầu tiên của bạn!'}
+          </Text>
         )}
       </ScrollView>
       <Modal
@@ -121,35 +136,19 @@ const PlaylistScreen = () => {
                 autoFocus
               />
             </View>
-            <View style={styles.privacyContainer}>
-              <View style={styles.privacyHeader}>
-                <Text>🔒</Text>
-                <Text style={styles.privacyTitle}>Quyền riêng tư</Text>
-              </View>
-              <View style={styles.privacyOption}>
-                <View>
-                  <Text style={styles.privacyText}>{isPublic ? 'Công khai' : 'Riêng tư'}</Text>
-                  <Text style={styles.privacyDescription}>
-                    {isPublic ? 'Mọi người có thể tìm thấy playlist này' : 'Chỉ bạn mới có thể xem playlist này'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setIsPublic(!isPublic)}
-                  style={styles.checkbox}
-                >
-                  <Text>{isPublic ? '☑' : '☐'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
             <TouchableOpacity
               style={[
                 styles.createButton,
-                playlistName.trim() ? {} : styles.createButtonDisabled,
+                playlistName.trim() && !isLoading
+                  ? {}
+                  : styles.createButtonDisabled,
               ]}
               onPress={handleSubmitPlaylist}
-              disabled={!playlistName.trim()}
+              disabled={!playlistName.trim() || isLoading}
             >
-              <Text style={styles.createButtonText}>Tạo playlist</Text>
+              <Text style={styles.createButtonText}>
+                {isLoading ? 'Đang tạo...' : 'Tạo playlist'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -282,43 +281,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  privacyContainer: {
-    marginBottom: 30,
-  },
-  privacyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  privacyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    marginLeft: 8,
-  },
-  privacyOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 16,
-    borderRadius: 8,
-  },
-  privacyText: {
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 4,
-  },
-  privacyDescription: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   createButton: {
     backgroundColor: '#1DB954',

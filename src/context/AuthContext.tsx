@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
        const token = await AuthService.getToken();
        if (token) {
          console.log('Token lấy ra:', token);
-       const response = await fetch('http://192.168.22.72:15000/api/verify-token', {
+       const response = await fetch('http://192.168.214.72:15000/api/verify-token', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch('http://192.168.22.72:15000/api/login', {
+      const response = await fetch('http://192.168.214.72:15000/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
