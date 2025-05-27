@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 //const BASE_URL = 'http://192.168.22.72:15000/api';
-const BASE_URL = 'http://192.168.214.72:15000/api';
+const BASE_URL = 'http://192.168.1.205:15000/api';
 
 const apiInstance = {
   async get(endpoint, config = {}) {
@@ -17,7 +17,7 @@ const apiInstance = {
   },
 
   async delete(endpoint, config = {}) {
-    return this.request(endpoint, 'DELETE', null, config);
+    return this.request(endpoint, 'DELETE', {}, config);
   },
 
   async request(endpoint, method, data = null, config = {}) {
@@ -49,21 +49,29 @@ const apiInstance = {
           : null,
       });
 
-      if (error.response?.status === 401 && !isRetrying && !config.skipAuth) {
-        isRetrying = true;
+      if (error.response?.status === 401 && !config._retry && !config.skipAuth) {
+        config._retry = true;
         try {
           console.log('Token expired, calling onTokenExpired callback');
-          if (!config.onTokenExpired) {
-            throw new Error('No onTokenExpired callback provided');
-          }
+          if (!config.onTokenExpired) throw new Error('No onTokenExpired callback provided');
           const newToken = await config.onTokenExpired();
-          if (!newToken) {
-            console.warn('No new token received');
-            throw new Error('Không thể refresh token: Token mới không hợp lệ');
-          }
-          headers.Authorization = `Bearer ${newToken}`;
+          if (!newToken) throw new Error('Không thể refresh token: Token mới không hợp lệ');
+
+          const newHeaders = {
+            ...config.headers,
+            Authorization: `Bearer ${newToken}`,
+          };
+
           console.log('Retrying with new token:', { method, url });
-          const retryResponse = await axios({ method, url, headers, data, ...config });
+
+          const retryResponse = await axios({
+            method,
+            url,
+            data,
+            ...config,
+            headers: newHeaders,
+          });
+
           console.log('Retry response:', retryResponse.data);
           return retryResponse.data;
         } catch (refreshError) {

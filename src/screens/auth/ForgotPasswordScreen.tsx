@@ -3,6 +3,9 @@ import { View, Text, TouchableOpacity, TextInput, Image, StyleSheet } from 'reac
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WibuReset from '../../assets/images/wibu/WibuReset';
+import apiInstance from '../../service/apiInstance';
+import OtpScreen from './OtpScreen';
+import Toast from 'react-native-toast-message';
 
 const ForgotPasswordScreen = () => {
   const navigation = useNavigation();
@@ -33,20 +36,48 @@ const ForgotPasswordScreen = () => {
       return;
     }
     setLoading(true);
+    setError('');
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setCountdown(60);
-      navigation.navigate('Otp', { email });
+      const response = await apiInstance.post('/password/send-otp', { user_email: email }, {
+        skipAuth: true, // Bỏ qua auth vì endpoint không cần token
+      });
+      if (response.success) {
+        setCountdown(60);
+        Toast.show({
+          type: 'success',
+          text1: 'Thành công',
+          text2: response.message || 'Đã gửi mã OTP qua email',
+        });
+        navigation.navigate('OtpScreen', { email });
+      } else {
+        throw new Error(response.errorMessage || 'Yêu cầu OTP thất bại');
+      }
     } catch (err) {
-      setError('Có lỗi xảy ra. Vui lòng thử lại sau.');
+      console.error('Lỗi gửi OTP:', err);
+      let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
+      if (err.response?.status === 400) {
+        errorMessage = '⚠ Email không được để trống';
+      } else if (err.response?.status === 404) {
+        errorMessage = '⚠ Không tìm thấy người dùng với email này';
+      } else if (err.response?.status === 429) {
+        errorMessage = '⚠ Vui lòng đợi 1 phút trước khi yêu cầu OTP mới';
+        setCountdown(60); // Đồng bộ countdown với rate-limit
+      } else if (err.response?.data?.errorMessage) {
+        errorMessage = `⚠ ${err.response.data.errorMessage}`;
+      }
+      setError(errorMessage);
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: errorMessage.replace('⚠ ', ''),
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} forceInset={{ top: 'always', bottom: 'always' }}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -107,19 +138,55 @@ const ForgotPasswordScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#000' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 12 },
-  backButton: { padding: 8 },
-  backIcon: { color: '#fff', fontSize: 24 },
-  container: { flex: 1, padding: 24 },
-  content: { flex: 1, justifyContent: 'center', gap: 24 },
-  logoContainer: { alignItems: 'center', marginBottom: 32, marginTop: 20 },
-  logo: { width: 150, height: 150 },
-  textContainer: { alignItems: 'center', marginBottom: 32 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-  subtitle: { fontSize: 16, color: '#ccc' },
-  formContainer: { gap: 24 },
-  inputContainer: { position: 'relative' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backIcon: {
+    color: '#fff',
+    fontSize: 24,
+  },
+  container: {
+    flex: 1,
+    padding: 24,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 24,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+    marginTop: 20,
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#ccc',
+  },
+  formContainer: {
+    gap: 24,
+  },
+  inputContainer: {
+    position: 'relative',
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -130,14 +197,20 @@ const styles = StyleSheet.create({
     height: 50,
     paddingHorizontal: 12,
   },
-  inputIcon: { color: '#fff', marginRight: 12 },
+  inputIcon: {
+    color: '#fff',
+    marginRight: 12,
+  },
   input: {
     flex: 1,
     color: '#fff',
     fontSize: 16,
     height: '100%',
   },
-  errorText: { color: '#ff4444', textAlign: 'center' },
+  errorText: {
+    color: '#ff4444',
+    textAlign: 'center',
+  },
   button: {
     backgroundColor: '#1DB954',
     height: 50,
@@ -145,8 +218,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default ForgotPasswordScreen;

@@ -6,6 +6,7 @@ const setupPlayer = async () => {
     maxCacheSize: 1024 * 10,
   });
   await TrackPlayer.updateOptions({
+    stopWithApp: false,
     ratingType: RatingType.Heart,
     capabilities: [
       Capability.Play,

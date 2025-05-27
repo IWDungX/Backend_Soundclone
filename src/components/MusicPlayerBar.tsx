@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import TrackPlayer, { useProgress, Event, useTrackPlayerEvents, State } from 'react-native-track-player';
 import { Previous, Pause, Play, Next } from 'iconsax-react-nativejs';
 import { usePlayerStore } from '../stores/usePlayerStore';
+import useUserStore from '../stores/useUserStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -11,37 +12,72 @@ const MusicPlayerBar = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { position, duration } = useProgress();
-  const { currentTrackData, isPlaying, togglePlay, skipToNext, skipToPrevious } = usePlayerStore();
+  const { currentTrackData, queue, isPlaying, isLoading, togglePlay, skipToNext, skipToPrevious } = usePlayerStore();
+  const { addHistory, histories } = useUserStore(); // Lấy addHistory và histories từ store
 
   // Lắng nghe sự kiện từ TrackPlayer
-  useTrackPlayerEvents([Event.PlaybackState, Event.RemotePlay, Event.RemotePause], async (event) => {
-    if (event.type === Event.PlaybackState) {
-      const state = await TrackPlayer.getState();
-      usePlayerStore.setState({ isPlaying: state === State.Playing });
-      console.log('Playback state:', state);
-    } else if (event.type === Event.RemotePlay) {
-      await TrackPlayer.play();
-      usePlayerStore.setState({ isPlaying: true });
-    } else if (event.type === Event.RemotePause) {
-      await TrackPlayer.pause();
-      usePlayerStore.setState({ isPlaying: false });
+  useTrackPlayerEvents(
+    [Event.PlaybackState, Event.RemotePlay, Event.RemotePause, Event.PlaybackTrackChanged],
+    async (event) => {
+      const { setIsPlaying, setCurrentTrack } = usePlayerStore.getState();
+      if (event.type === Event.PlaybackState) {
+        const state = await TrackPlayer.getState();
+        setIsPlaying(state === State.Playing);
+      } else if (event.type === Event.PlaybackTrackChanged && event.nextTrack != null) {
+        const currentQueue = await TrackPlayer.getQueue();
+        if (currentQueue[event.nextTrack]) {
+          const nextTrack = currentQueue[event.nextTrack];
+          setCurrentTrack(nextTrack.id, nextTrack);
+          // Kiểm tra trạng thái phát để lưu lịch sử
+          const state = await TrackPlayer.getState();
+          if (state === State.Playing && nextTrack.id && histories[0]?.song_id !== nextTrack.id) {
+            try {
+              await addHistory(nextTrack.id);
+              console.log('Đã lưu lịch sử phát nhạc:', nextTrack.title);
+            } catch (error) {
+              console.error('Lỗi khi lưu lịch sử:', error);
+            }
+          }
+        }
+      } else if (event.type === Event.RemotePlay) {
+        await TrackPlayer.play();
+        setIsPlaying(true);
+        // Lưu lịch sử khi phát từ remote
+        if (currentTrackData && histories[0]?.song_id !== currentTrackData.id) {
+          try {
+            await addHistory(currentTrackData.id);
+            console.log('Đã lưu lịch sử phát nhạc:', currentTrackData.title);
+          } catch (error) {
+            console.error('Lỗi khi lưu lịch sử:', error);
+          }
+        }
+      } else if (event.type === Event.RemotePause) {
+        await TrackPlayer.pause();
+        setIsPlaying(false);
+      }
     }
-  });
+  );
 
   // Đồng bộ trạng thái khi currentTrackData thay đổi
   useEffect(() => {
     const syncState = async () => {
       if (currentTrackData) {
         const state = await TrackPlayer.getState();
-        usePlayerStore.setState({ isPlaying: state === State.Playing });
+        usePlayerStore.getState().setIsPlaying(state === State.Playing);
       }
     };
     syncState();
   }, [currentTrackData]);
 
-  if (!currentTrackData || route.name === 'NowPlayingScreen') return null;
+  if (!currentTrackData || route.name === 'NowPlayingScreen') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.emptyText}>Chưa có bài hát nào được chọn</Text>
+      </View>
+    );
+  }
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     if (!seconds) return '0:00';
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -51,7 +87,11 @@ const MusicPlayerBar = () => {
   const progress = duration ? (position / duration) * 100 : 0;
 
   const handlePress = () => {
-    navigation.navigate('NowPlayingScreen', { songs: [currentTrackData], initialTrackIndex: 0 });
+    const currentTrackIndex = queue.findIndex(song => song.id === currentTrackData.id);
+    navigation.navigate('NowPlayingScreen', {
+      songs: queue,
+      initialTrackIndex: currentTrackIndex !== -1 ? currentTrackIndex : 0,
+    });
   };
 
   return (
@@ -77,7 +117,8 @@ const MusicPlayerBar = () => {
               skipToPrevious();
             }}
             activeOpacity={0.7}
-            style={styles.controlButton}
+            style={[styles.controlButton, isLoading && styles.controlButtonDisabled]}
+            disabled={isLoading}
           >
             <Previous color="#ffffff" size={28} />
           </TouchableOpacity>
@@ -87,9 +128,16 @@ const MusicPlayerBar = () => {
               await togglePlay();
             }}
             activeOpacity={0.7}
-            style={styles.controlButton}
+            style={[styles.controlButton, isPlaying && styles.controlButtonActive, isLoading && styles.controlButtonDisabled]}
+            disabled={isLoading}
           >
-            {isPlaying ? <Pause size="35" color="#fff" /> : <Play size="35" color="#fff" />}
+            {isLoading ? (
+              <Text style={styles.loadingText}>Đang tải...</Text>
+            ) : isPlaying ? (
+              <Pause size="35" color="#fff" />
+            ) : (
+              <Play size="35" color="#fff" />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={(e) => {
@@ -97,7 +145,8 @@ const MusicPlayerBar = () => {
               skipToNext();
             }}
             activeOpacity={0.7}
-            style={styles.controlButton}
+            style={[styles.controlButton, isLoading && styles.controlButtonDisabled]}
+            disabled={isLoading}
           >
             <Next color="#ffffff" size={28} />
           </TouchableOpacity>
@@ -114,7 +163,7 @@ const MusicPlayerBar = () => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#282828',
-    height: 60,
+    height: 70,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.1)',
     shadowColor: '#000',
@@ -144,8 +193,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   artwork: {
-    width: 40,
-    height: 40,
+    width: 60,
+    height: 60,
     borderRadius: 4,
     marginRight: 10,
     backgroundColor: '#333',
@@ -171,6 +220,23 @@ const styles = StyleSheet.create({
   controlButton: {
     padding: 8,
     marginLeft: 4,
+    borderRadius: 8,
+  },
+  controlButtonActive: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  controlButtonDisabled: {
+    opacity: 0.5,
+  },
+  emptyText: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: '#B3B3B3',
+    paddingVertical: 20,
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 12,
   },
 });
 

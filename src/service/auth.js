@@ -1,45 +1,61 @@
 import EncryptedStorage from 'react-native-encrypted-storage';
 import axios from 'axios';
 
-const BASE_URL = 'http://192.168.214.72:15000/api';
+const BASE_URL = 'http://192.168.1.205:15000/api';
 
 const AuthService = {
-  async getToken() {
+  getToken: async () => {
     try {
-      const token = await EncryptedStorage.getItem('token');
-      console.log('Lấy token:', token ? 'Có token' : 'Không có token');
-      return token;
+      return await EncryptedStorage.getItem('token');
     } catch (error) {
       console.error('Lỗi lấy token:', error);
       return null;
     }
   },
-  async refreshToken() {
+
+  getRefreshToken: async () => {
     try {
-      const refreshToken = await EncryptedStorage.getItem('refreshToken');
-      console.log('Lấy refreshToken:', refreshToken ? 'Có refreshToken' : 'Không có refreshToken');
-      if (!refreshToken) {
-        throw new Error('Không có refresh token');
-      }
-      const response = await axios.post(`${BASE_URL}/login/refresh`, { refreshToken });
-      if (response.data.token) {
-        await EncryptedStorage.setItem('token', response.data.token);
-        console.log('Lưu token mới thành công');
-        return response.data.token;
-      }
-      throw new Error('Không nhận được token mới');
+      return await EncryptedStorage.getItem('refreshToken');
     } catch (error) {
-      console.error('Lỗi refresh token:', error.message);
-      throw error;
+      console.error('Lỗi lấy refresh token:', error);
+      return null;
     }
   },
-  async logout() {
+
+  setToken: async (token) => {
+    try {
+      await EncryptedStorage.setItem('token', token);
+    } catch (error) {
+      console.error('Lỗi lưu token:', error);
+    }
+  },
+
+  refreshToken: async () => {
+    try {
+      const refreshToken = await AuthService.getRefreshToken();
+      if (!refreshToken) throw new Error('Không tìm thấy refresh token');
+
+      const response = await axios.post(`${BASE_URL}/auth/refresh`, {
+        refreshToken, // hoặc tùy theo backend yêu cầu
+      });
+
+      const newToken = response.data.token; // hoặc accessToken tùy theo backend trả về
+      if (!newToken) throw new Error('Token mới không tồn tại trong response');
+
+      await AuthService.setToken(newToken);
+      return newToken;
+    } catch (error) {
+      console.error('Lỗi khi refresh token:', error);
+      return null;
+    }
+  },
+
+  logout: async () => {
     try {
       await EncryptedStorage.removeItem('token');
       await EncryptedStorage.removeItem('refreshToken');
-      console.log('Xóa token thành công');
     } catch (error) {
-      console.error('Lỗi đăng xuất:', error);
+      console.error('Lỗi xóa token:', error);
       throw error;
     }
   },

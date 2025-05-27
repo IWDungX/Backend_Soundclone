@@ -1,3 +1,4 @@
+// components/Sidebar.tsx
 import React from 'react';
 import {
   Animated,
@@ -7,13 +8,15 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
-import { User, Notification, Clock, Setting2, InfoCircle, Logout, ArrowRight} from 'iconsax-react-nativejs';
+import { useNavigation } from '@react-navigation/native';
+import { User, Notification, Clock, Setting2, InfoCircle, Logout, ArrowRight } from 'iconsax-react-nativejs';
+import useUserStore from '../stores/useUserStore';
 import LoginScreen from '../screens/auth/LoginScreen';
-import { logout } from '../context/AuthContext';
-import AuthService from '../service/auth';
-// Import theme constants
+import History from '../screens/other/sidebar-screen/History';
+
 const COLORS = {
   background: '#121212',
   text: {
@@ -21,14 +24,6 @@ const COLORS = {
     secondary: 'rgba(255,255,255,0.6)',
   },
 };
-
-interface UserData {
-  id: string;
-  name: string;
-  avatarUrl: string;
-  email: string;
-  premium: boolean;
-}
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -39,79 +34,124 @@ interface MenuItem {
 interface SidebarProps {
   isVisible: boolean;
   onClose: () => void;
-  userData: UserData;
+  userData: {
+    user_name?: string;
+    user_email?: string;
+    user_avatar_url?: string;
+    premium?: boolean;
+  } | null;
   translateX: Animated.Value;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({isVisible, onClose, userData, translateX}) => {
+const Sidebar: React.FC<SidebarProps> = ({ isVisible, onClose, userData, translateX }) => {
   const navigation = useNavigation();
+  const { user, logout, isLoading: userLoading, error: userError } = useUserStore();
 
   const handleLogout = async () => {
-      try {
-        await AuthService.logout();
-        navigation.navigate('LoginScreen');
-      } catch (error) {
-        console.error('Lỗi đăng xuất:', error);
-        Alert.alert('Lỗi', 'Không thể đăng xuất');
-      }
+    try {
+      await logout();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'LoginScreen' }],
+      });
+    } catch (error) {
+      console.error('Lỗi đăng xuất:', error);
+      Alert.alert('Lỗi', 'Không thể đăng xuất, thử lại sau');
+    }
   };
 
   const menuItems: MenuItem[] = [
-     {
-      icon: <User color="#ffffff" variant="Bold"/>,
+    {
+      icon: <User color="#ffffff" variant="Bold" />,
       title: 'Hồ sơ',
       onPress: () => navigation.navigate('ProfileScreen'),
     },
     {
-      icon: <Notification color="#ffffff" variant="Bold"/>,
+      icon: <Notification color="#ffffff" variant="Bold" />,
       title: 'Thông báo',
       onPress: () => navigation.navigate('FavoriteSongsScreen'),
     },
     {
-      icon: <Clock color="#ffffff" variant="Bold"/>,
+      icon: <Clock color="#ffffff" variant="Bold" />,
       title: 'Lịch sử',
-      onPress: () => navigation.navigate('FavoriteSongsScreen'),
+      onPress: () => navigation.navigate('History'),
     },
     {
-      icon: <Setting2 color="#ffffff" variant="Bold"/>,
+      icon: <Setting2 color="#ffffff" variant="Bold" />,
       title: 'Cài đặt',
       onPress: () => navigation.navigate('SettingsScreen'),
     },
     {
-      icon: <InfoCircle color="#ffffff" variant="Bold"/>,
+      icon: <InfoCircle color="#ffffff" variant="Bold" />,
       title: 'Giới thiệu',
       onPress: () => navigation.navigate('IntroductionScreen'),
     },
     {
-      icon: <Logout color="#ffffff" variant="Bold"/>,
+      icon: <Logout color="#ffffff" variant="Bold" />,
       title: 'Đăng xuất',
-      onPress: () => handleLogout(),
+      onPress: handleLogout,
     },
   ];
 
   if (!isVisible) return null;
+
+//   if (userLoading) {
+//     return (
+//       <Animated.View
+//         style={[
+//           styles.animatedContainer,
+//           { transform: [{ translateX }] },
+//         ]}
+//       >
+//         <SafeAreaView style={styles.container}>
+//           <ActivityIndicator size="large" color="#1DB954" />
+//         </SafeAreaView>
+//       </Animated.View>
+//     );
+//   }
+
+  if (userError) {
+    return (
+      <Animated.View
+        style={[
+          styles.animatedContainer,
+          { transform: [{ translateX }] },
+        ]}
+      >
+        <SafeAreaView style={styles.container}>
+          <Text style={styles.errorText}>Lỗi: {userError}</Text>
+          <TouchableOpacity onPress={() => useUserStore.getState().initializeAuth()}>
+            <Text style={styles.retryText}>Thử lại</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View
       style={[
         styles.animatedContainer,
         {
-          transform: [{translateX}],
+          transform: [{ translateX }],
         },
       ]}
     >
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <ArrowRight color="#ffffff"/>
+            <ArrowRight color="#ffffff" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.userInfo}>
-          <Image source={{uri: userData.avatarUrl}} style={styles.avatar} />
-          <Text style={styles.userName}>{userData.name}</Text>
-          <Text style={styles.userEmail}>{userData.email}</Text>
-          {userData.premium && (
+          <Image
+            source={{ uri: userData?.user_avatar_url || 'https://picsum.photos/seed/user123/100/100' }}
+            style={styles.avatar}
+          />
+          <Text style={styles.userName}>{userData?.user_name || 'Tên không rõ'}</Text>
+          <Text style={styles.userEmail}>{userData?.user_email || 'Email không rõ'}</Text>
+          {userData?.premium && (
             <View style={styles.premiumBadge}>
               <Text style={styles.premiumText}>Premium</Text>
             </View>
@@ -209,6 +249,17 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     fontSize: 16,
     color: COLORS.text.primary,
+  },
+  errorText: {
+    color: '#fff',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  retryText: {
+    color: '#1DB954',
+    textAlign: 'center',
+    marginTop: 10,
+    fontSize: 16,
   },
 });
 

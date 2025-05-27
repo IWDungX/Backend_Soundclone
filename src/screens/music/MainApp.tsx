@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HomeScreen from './HomeScreen';
 import SearchingScreen from './SearchingScreen';
 import PlaylistScreen from './PlaylistScreen';
@@ -11,17 +12,20 @@ import { Home, SearchNormal1, MusicPlaylist } from 'iconsax-react-native';
 const Tab = createBottomTabNavigator();
 
 const MainApp = () => {
-  const route = useRoute();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_HEIGHT = 50;
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView style={styles.container} forceInset={{ top: 'always', bottom: 'never' }}>
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarStyle: {
-             backgroundColor: 'rgba(18, 18, 18, 0.9)',
-             borderTopColor: 'rgba(255, 255, 255, 0.2)',
-             position: 'absolute',
+            backgroundColor: 'rgba(18, 18, 18, 0.9)',
+            borderTopColor: 'rgba(255, 255, 255, 0.2)',
+            paddingBottom: insets.bottom,
+            height: TAB_BAR_HEIGHT + insets.bottom,
           },
           tabBarIcon: ({ color, size, focused }) => {
             if (route.name === 'HomeScreen') {
@@ -42,17 +46,21 @@ const MainApp = () => {
         <Tab.Screen name="PlaylistScreen" component={PlaylistScreen} />
       </Tab.Navigator>
 
-      <View style={styles.musicBarContainer}>
+      <View style={[styles.musicBarContainer]}>
         <MusicPlayerBar />
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
   musicBarContainer: {
     position: 'absolute',
-    bottom: 49,
+    bottom: '10.5%',
     left: 0,
     right: 0,
   },

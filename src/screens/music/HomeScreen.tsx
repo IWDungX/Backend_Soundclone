@@ -86,18 +86,26 @@ const HomeScreen = () => {
     const fetchData = async () => {
       try {
         const songsData = await getSongs();
-        console.log('Songs data from API:', songsData);
-        const formattedSongs = songsData.map((song) => ({
-          id: song.song_id,
-          title: song.song_title || 'Unknown Title',
-          artist: song.Artist?.artist_name || 'Unknown Artist',
-          artwork: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
-          url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
-          albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
-          duration: song.song_duration || '4:00',
-          lastPlayed: song.song_createAt || new Date().toISOString(),
-        })).filter(song => song.url);
-        console.log('Formatted songs:', formattedSongs);
+        console.log('Dữ liệu bài hát từ API:', songsData);
+        const formattedSongs = songsData
+          .map((song) => {
+            if (!song.song_id || !song.song_audio_url) {
+              console.warn('Bài hát không hợp lệ:', song);
+              return null;
+            }
+            return {
+              id: song.song_id,
+              title: song.song_title || 'Unknown Title',
+              artist: song.Artist?.artist_name || 'Unknown Artist',
+              artwork: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+              url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
+              albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+              duration: song.song_duration || '4:00',
+              lastPlayed: song.song_createAt || new Date().toISOString(),
+            };
+          })
+          .filter(song => song && song.url);
+        console.log('Danh sách bài hát đã định dạng:', formattedSongs);
         setRecentlyPlayed(formattedSongs);
       } catch (error) {
         console.error('Lỗi khi lấy dữ liệu từ API:', error);
@@ -107,16 +115,24 @@ const HomeScreen = () => {
             const newToken = await AuthService.refreshToken();
             if (newToken) {
               const songsData = await getSongs();
-              const formattedSongs = songsData.map((song) => ({
-                id: song.song_id,
-                title: song.song_title || 'Unknown Title',
-                artist: song.Artist?.artist_name || 'Unknown Artist',
-                artwork: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
-                url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
-                albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
-                duration: song.song_duration || '4:00',
-                lastPlayed: song.song_createAt || new Date().toISOString(),
-              })).filter(song => song.url);
+              const formattedSongs = songsData
+                .map((song) => {
+                  if (!song.song_id || !song.song_audio_url) {
+                    console.warn('Bài hát không hợp lệ:', song);
+                    return null;
+                  }
+                  return {
+                    id: song.song_id,
+                    title: song.song_title || 'Unknown Title',
+                    artist: song.Artist?.artist_name || 'Unknown Artist',
+                    artwork: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+                    url: song.song_audio_url ? getFullMinioUrl(song.song_audio_url) : null,
+                    albumCover: song.song_image_url ? getFullMinioUrl(song.song_image_url) : 'https://picsum.photos/seed/song/200/200',
+                    duration: song.song_duration || '4:00',
+                    lastPlayed: song.song_createAt || new Date().toISOString(),
+                  };
+                })
+                .filter(song => song && song.url);
               setRecentlyPlayed(formattedSongs);
             } else {
               await AuthService.logout();
@@ -141,15 +157,24 @@ const HomeScreen = () => {
       try {
         const queue = await TrackPlayer.getQueue();
         const currentTrackIndex = await TrackPlayer.getCurrentTrack();
+        console.log('TrackPlayer queue:', queue);
+        console.log('TrackPlayer currentTrackIndex:', currentTrackIndex);
         if (currentTrackIndex !== null && queue[currentTrackIndex]) {
           setCurrentTrack(queue[currentTrackIndex].id, queue[currentTrackIndex]);
+          console.log('Cập nhật currentTrackData:', queue[currentTrackIndex]);
+        } else if (recentlyPlayed.length > 0) {
+          await TrackPlayer.reset();
+          await TrackPlayer.add(recentlyPlayed);
+          await TrackPlayer.skip(0);
+          setCurrentTrack(recentlyPlayed[0].id, recentlyPlayed[0]);
+          console.log('Khởi tạo hàng đợi từ recentlyPlayed:', recentlyPlayed[0]);
         }
       } catch (error) {
-        console.error('Error syncing TrackPlayer:', error);
+        console.error('Lỗi đồng bộ TrackPlayer:', error);
       }
     };
     syncTrackPlayer();
-  }, [setCurrentTrack]);
+  }, [setCurrentTrack, recentlyPlayed]);
 
   useEffect(() => {
     const getGreetingByTime = () => {
@@ -167,17 +192,29 @@ const HomeScreen = () => {
   }, []);
 
   useTrackPlayerEvents([Event.PlaybackTrackChanged, Event.PlaybackQueueEnded], async (event) => {
-    console.log('TrackPlayer event:', event);
-    if (event.type === Event.PlaybackTrackChanged && event.nextTrack !== null) {
-      const queue = await TrackPlayer.getQueue();
-      const nextTrackIndex = event.nextTrack;
-      if (nextTrackIndex >= 0 && nextTrackIndex < queue.length) {
-        setCurrentTrack(queue[nextTrackIndex].id, queue[nextTrackIndex]);
-        console.log('Current track updated:', queue[nextTrackIndex]);
+    console.log('Sự kiện TrackPlayer:', event);
+    try {
+      if (event.type === Event.PlaybackTrackChanged && event.nextTrack !== null) {
+        const queue = await TrackPlayer.getQueue();
+        const nextTrackIndex = event.nextTrack;
+        if (nextTrackIndex >= 0 && nextTrackIndex < queue.length) {
+          setCurrentTrack(queue[nextTrackIndex].id, queue[nextTrackIndex]);
+          console.log('Cập nhật bài hát hiện tại:', queue[nextTrackIndex]);
+        }
+      } else if (event.type === Event.PlaybackQueueEnded) {
+        if (recentlyPlayed.length > 0) {
+          await TrackPlayer.reset();
+          await TrackPlayer.add(recentlyPlayed);
+          await TrackPlayer.skip(0);
+          setCurrentTrack(recentlyPlayed[0].id, recentlyPlayed[0]);
+          console.log('Hàng đợi kết thúc, tải lại danh sách bài hát');
+        } else {
+          setCurrentTrack(null, null);
+          console.log('Hàng đợi kết thúc, không có bài hát để tải lại');
+        }
       }
-    } else if (event.type === Event.PlaybackQueueEnded) {
-      setCurrentTrack(null, null);
-      console.log('Queue ended, cleared current track');
+    } catch (error) {
+      console.error('Lỗi xử lý sự kiện TrackPlayer:', error);
     }
   });
 
@@ -216,10 +253,10 @@ const HomeScreen = () => {
     const tracks = recentlyPlayed
       .map((item) => ({
         id: String(item.id),
-        url: item.url,
-        title: item.title,
-        artist: item.artist,
-        artwork: item.artwork,
+        url: item.url || getFullMinioUrl(song.song_audio_url),
+        title: item.title || song.song_title,
+        artist: item.artist || song.Artist?.artist_name,
+        artwork: item.artwork || getFullMinioUrl(song.song_image_url),
       }))
       .filter(t => t.url);
 

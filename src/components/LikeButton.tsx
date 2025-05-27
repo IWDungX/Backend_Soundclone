@@ -1,37 +1,39 @@
 import React, { useState } from 'react';
-import { TouchableOpacity } from 'react-native';
-import { Heart } from 'iconsax-react-nativejs'; // Giả sử bạn sử dụng thư viện này
-import { usePlayerStore } from '../stores/usePlayerStore'; // Import usePlayerStore
+import { TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Heart } from 'iconsax-react-native';
+import { usePlayerStore } from '../stores/usePlayerStore';
 
 const LikeButton = () => {
-  const { isLiked, toggleLike } = usePlayerStore(); // Lấy isLiked và toggleLike từ store
-  const [isLoading, setIsLoading] = useState(false); // Thêm trạng thái loading
+  const { isLiked, togglePlayerLike } = usePlayerStore();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleToggleLike = async () => {
-    setIsLoading(true); // Bắt đầu loading
+    setIsLoading(true);
     try {
-      await toggleLike(); // Gọi toggleLike từ store (sẽ tự lấy token từ apiLikeSong)
-      // Trạng thái isLiked sẽ được cập nhật tự động từ store
+      await togglePlayerLike();
     } catch (error) {
-      console.error('Lỗi khi toggleLike:', error);
-      // Có thể hiển thị thông báo lỗi cho người dùng (tùy chọn)
+      console.error('Error toggling like:', error);
     } finally {
-      setIsLoading(false); // Kết thúc loading
+      setIsLoading(false);
     }
   };
+
+  console.log('LikeButton isLiked:', isLiked); // Debug
 
   return (
     <TouchableOpacity
       onPress={handleToggleLike}
-      disabled={isLoading} // Vô hiệu hóa nút khi đang loading
-      style={{ opacity: isLoading ? 0.5 : 1 }} // Thêm hiệu ứng loading
+      disabled={isLoading}
+      style={{ opacity: isLoading ? 0.5 : 1 }}
     >
       {isLoading ? (
-        <Heart size="32" color="#d9e3f0" variant="Bold" /> // Icon loading (có thể thay bằng animation)
-      ) : isLiked ? (
-        <Heart size="32" color="#d9e3f0" variant="Bold" />
+        <ActivityIndicator size="small" color="#d9e3f0" />
       ) : (
-        <Heart size="32" color="#d9e3f0" />
+        <Heart
+          size="32"
+          color="#d9e3f0"
+          variant={isLiked ? 'Bold' : 'Outline'}
+        />
       )}
     </TouchableOpacity>
   );

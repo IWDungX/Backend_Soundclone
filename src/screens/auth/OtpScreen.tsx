@@ -5,11 +5,13 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  Alert,
   Keyboard,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import apiInstance from '../../service/apiInstance';
+import ResetPasswordScreen from './ResetPasswordScreen';
+import Toast from 'react-native-toast-message';
 
 const OtpScreen = () => {
   const navigation = useNavigation();
@@ -39,14 +41,42 @@ const OtpScreen = () => {
   const handleResendOtp = async () => {
     if (resendCountdown > 0) return;
     setLoading(true);
+    setError('');
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setOtpExpiry(300);
-      setResendCountdown(60);
-      Alert.alert('Thành công', 'Mã OTP mới đã được gửi đến email của bạn');
+      const response = await apiInstance.post('/password/send-otp', { user_email: email }, {
+        skipAuth: true,
+      });
+      if (response.success) {
+        setOtpExpiry(300);
+        setResendCountdown(60);
+        setOtpValues(['', '', '', '', '', '']);
+        Toast.show({
+          type: 'success',
+          text1: 'Thành công',
+          text2: response.message || 'Mã OTP mới đã được gửi đến email của bạn',
+        });
+      } else {
+        throw new Error(response.errorMessage || 'Gửi lại OTP thất bại');
+      }
     } catch (err) {
-      setError('Không thể gửi lại mã OTP');
+      console.error('Lỗi gửi lại OTP:', err);
+      let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
+      if (err.response?.status === 400) {
+        errorMessage = '⚠ Email không hợp lệ';
+      } else if (err.response?.status === 404) {
+        errorMessage = '⚠ Không tìm thấy người dùng';
+      } else if (err.response?.status === 429) {
+        errorMessage = '⚠ Vui lòng đợi 1 phút trước khi yêu cầu OTP mới';
+        setResendCountdown(60);
+      } else if (err.response?.data?.errorMessage) {
+        errorMessage = `⚠ ${err.response.data.errorMessage}`;
+      }
+      setError(errorMessage);
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: errorMessage.replace('⚠ ', ''),
+      });
     } finally {
       setLoading(false);
     }
@@ -63,12 +93,37 @@ const OtpScreen = () => {
       return;
     }
     setLoading(true);
+    setError('');
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      navigation.navigate('ResetPassword', { token: 'fake-token' });
+      const response = await apiInstance.post('/password/verify-otp', { user_email: email, otp: otpCode }, {
+        skipAuth: true,
+      });
+      if (response.success) {
+        Toast.show({
+          type: 'success',
+          text1: 'Thành công',
+          text2: response.message || 'Xác nhận OTP thành công',
+        });
+        navigation.navigate('ResetPasswordScreen', { token: response.token, email });
+      } else {
+        throw new Error(response.errorMessage || 'Xác nhận OTP thất bại');
+      }
     } catch (err) {
-      setError('Xác thực OTP thất bại');
+      console.error('Lỗi xác nhận OTP:', err);
+      let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
+      if (err.response?.status === 400) {
+        errorMessage = '⚠ OTP không hợp lệ hoặc đã hết hạn';
+      } else if (err.response?.status === 404) {
+        errorMessage = '⚠ Không tìm thấy người dùng';
+      } else if (err.response?.data?.errorMessage) {
+        errorMessage = `⚠ ${err.response.data.errorMessage}`;
+      }
+      setError(errorMessage);
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: errorMessage.replace('⚠ ', ''),
+      });
     } finally {
       setLoading(false);
     }
@@ -91,7 +146,7 @@ const OtpScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} forceInset={{ top: 'always', bottom: 'always' }}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -127,12 +182,12 @@ const OtpScreen = () => {
           </Text>
           <TouchableOpacity
             onPress={handleResendOtp}
-            disabled={resendCountdown > 0}
+            disabled={resendCountdown > 0 || loading}
           >
             <Text
               style={[
                 styles.resend,
-                resendCountdown > 0 && styles.resendDisabled,
+                (resendCountdown > 0 || loading) && styles.resendDisabled,
               ]}
             >
               Gửi lại OTP{' '}
@@ -160,14 +215,42 @@ const OtpScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#000' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 12 },
-  backButton: { padding: 8 },
-  backIcon: { color: '#fff', fontSize: 24 },
-  container: { flex: 1, padding: 24 },
-  content: { flex: 1, justifyContent: 'center', gap: 24 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center' },
-  subtitle: { fontSize: 16, color: '#ccc', textAlign: 'center' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backIcon: {
+    color: '#fff',
+    fontSize: 24,
+  },
+  container: {
+    flex: 1,
+    padding: 24,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 24,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#ccc',
+    textAlign: 'center',
+  },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -185,10 +268,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     color: '#fff',
   },
-  countdown: { fontSize: 14, textAlign: 'center', color: '#1DB954' },
-  resend: { fontSize: 14, textAlign: 'center', color: '#1DB954' },
-  resendDisabled: { opacity: 0.5 },
-  errorText: { color: '#ff4444', textAlign: 'center', marginVertical: 8 },
+  countdown: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#1DB954',
+  },
+  resend: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#1DB954',
+  },
+  resendDisabled: {
+    opacity: 0.5,
+  },
+  errorText: {
+    color: '#ff4444',
+    textAlign: 'center',
+    marginVertical: 8,
+  },
   verifyButton: {
     backgroundColor: '#1DB954',
     height: 50,
@@ -196,8 +293,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buttonDisabled: { opacity: 0.5 },
-  verifyButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default OtpScreen;

@@ -8,7 +8,12 @@ import {
   TextInput,
   StyleSheet,
   Modal,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { SearchNormal1, CloseCircle, Add, ArrowLeft } from 'iconsax-react-nativejs';
+import { useNavigation } from '@react-navigation/native';
 import usePlaylistStore from '../../stores/usePlaylistStore';
 
 const PlaylistScreen = () => {
@@ -16,10 +21,10 @@ const PlaylistScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
+  const navigation = useNavigation();
 
   const { playlists, isLoading, fetchPlaylists, createPlaylist } = usePlaylistStore();
 
-  // Lấy danh sách playlist khi màn hình được tải
   useEffect(() => {
     fetchPlaylists();
   }, [fetchPlaylists]);
@@ -42,117 +47,135 @@ const PlaylistScreen = () => {
         setIsModalVisible(false);
         setPlaylistName('');
       } catch (error) {
-        // Lỗi đã được xử lý trong store, không cần làm gì thêm
+        // Lỗi đã được xử lý trong store
       }
     }
   };
 
-  // Lọc playlist theo searchQuery
+  const handlePlaylistPress = (playlist) => {
+    navigation.navigate('SongListScreen', {
+      playlistId: playlist.id,
+      playlistTitle: playlist.title, // Sử dụng title
+      coverImage: playlist.coverImage || 'https://picsum.photos/200/200',
+    });
+  };
+
   const filteredPlaylists = playlists.filter((item) =>
-    item.playlist_title.toLowerCase().includes(searchQuery.toLowerCase())
+    item.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        {!isSearchVisible ? (
-          <>
-            <Text style={styles.title}>Thư viện</Text>
-            <TouchableOpacity style={styles.iconButton} onPress={toggleSearch}>
-              <Text>🔍</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={handleCreatePlaylist}>
-              <Text>➕</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <View style={styles.searchBarContainer}>
-            <View style={styles.searchBar}>
-              <Text>🔍</Text>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Tìm kiếm trong thư viện"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-              />
-              <TouchableOpacity onPress={toggleSearch}>
-                <Text>❌</Text>
+      <StatusBar
+        backgroundColor="rgba(18, 18, 18, 1)"
+        barStyle="light-content"
+        translucent={true}
+      />
+      <SafeAreaView style={styles.safeAreaContainer}>
+        <View style={styles.header}>
+          {!isSearchVisible ? (
+            <>
+              <Text style={styles.title}>Thư viện</Text>
+              <TouchableOpacity style={styles.iconButton} onPress={toggleSearch}>
+                <SearchNormal1 size={24} color="#ffffff" />
               </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-      <ScrollView style={styles.content}>
-        {isLoading ? (
-          <Text style={styles.emptyState}>Đang tải...</Text>
-        ) : filteredPlaylists.length > 0 ? (
-          filteredPlaylists.map((item) => (
-            <View key={item.id} style={styles.playlistItem}>
-              <Image
-                source={{ uri: item.coverImage || 'https://picsum.photos/200/200' }}
-                style={styles.playlistCover}
-              />
-              <View style={styles.playlistInfo}>
-                <Text style={styles.playlistName}>{item.playlist_title}</Text>
-                <Text style={styles.playlistDetails}>
-                  {item.songs?.length || 0} bài hát
-                </Text>
+              <TouchableOpacity style={styles.iconButton} onPress={handleCreatePlaylist}>
+                <Add size={24} color="#ffffff" />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={styles.searchBarContainer}>
+              <View style={styles.searchBar}>
+                <SearchNormal1 size={20} color="#000000" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Tìm kiếm trong thư viện"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                />
+                <TouchableOpacity onPress={toggleSearch}>
+                  <CloseCircle size={20} color="#000000" />
+                </TouchableOpacity>
               </View>
             </View>
-          ))
-        ) : (
-          <Text style={styles.emptyState}>
-            {searchQuery
-              ? 'Không tìm thấy playlist nào'
-              : 'Chưa có playlist nào. Hãy tạo playlist đầu tiên của bạn!'}
-          </Text>
-        )}
-      </ScrollView>
-      <Modal
-        visible={isModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setIsModalVisible(false)}
-              >
-                <Text>❌</Text>
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Tạo playlist mới</Text>
-            </View>
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Tên playlist</Text>
-              <TextInput
-                style={styles.playlistNameInput}
-                placeholder="Nhập tên playlist của bạn"
-                value={playlistName}
-                onChangeText={setPlaylistName}
-                autoFocus
-              />
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.createButton,
-                playlistName.trim() && !isLoading
-                  ? {}
-                  : styles.createButtonDisabled,
-              ]}
-              onPress={handleSubmitPlaylist}
-              disabled={!playlistName.trim() || isLoading}
-            >
-              <Text style={styles.createButtonText}>
-                {isLoading ? 'Đang tạo...' : 'Tạo playlist'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
-      </Modal>
+        <ScrollView style={styles.content}>
+          {isLoading ? (
+            <Text style={styles.emptyState}>Đang tải...</Text>
+          ) : filteredPlaylists.length > 0 ? (
+            filteredPlaylists.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.playlistItem}
+                onPress={() => handlePlaylistPress(item)}
+              >
+                <Image
+                  source={{ uri: item.coverImage || 'https://picsum.photos/200/200' }}
+                  style={styles.playlistCover}
+                />
+                <View style={styles.playlistInfo}>
+                  <Text style={styles.playlistName}>{item.title}</Text>
+                  <Text style={styles.playlistDetails}>
+                    {item.songs?.length || 0} bài hát
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.emptyState}>
+              {searchQuery
+                ? 'Không tìm thấy playlist nào'
+                : 'Chưa có playlist nào. Hãy tạo playlist đầu tiên của bạn!'}
+            </Text>
+          )}
+        </ScrollView>
+        <Modal
+          visible={isModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setIsModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Tạo playlist mới</Text>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setIsModalVisible(false)}
+                >
+                  <CloseCircle size={24} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Tên playlist</Text>
+                <TextInput
+                  style={styles.playlistNameInput}
+                  placeholder="Nhập tên playlist của bạn"
+                  value={playlistName}
+                  onChangeText={setPlaylistName}
+                  autoFocus
+                />
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.createButton,
+                  playlistName.trim() && !isLoading
+                    ? {}
+                    : styles.createButtonDisabled,
+                ]}
+                onPress={handleSubmitPlaylist}
+                disabled={!playlistName.trim() || isLoading}
+              >
+                <Text style={styles.createButtonText}>
+                  {isLoading ? 'Đang tạo...' : 'Tạo playlist'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
     </View>
   );
 };
@@ -161,6 +184,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#121212',
+  },
+  safeAreaContainer: {
+    flex: 1,
   },
   header: {
     height: 60,
@@ -250,20 +276,21 @@ const styles = StyleSheet.create({
     maxWidth: 400,
   },
   modalHeader: {
-    position: 'relative',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 30,
+    paddingHorizontal: 5,
   },
   closeButton: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
     padding: 5,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
+    flex: 1,
+    textAlign: 'center',
   },
   inputContainer: {
     marginBottom: 30,

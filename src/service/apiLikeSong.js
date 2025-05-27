@@ -73,36 +73,41 @@ export const checkLikeStatus = async (songId) => {
 export const getLikedSongs = async () => {
   try {
     const token = await AuthService.getToken();
-    const response = await apiInstance.get('/songs/liked', {
-      token,
-      onTokenExpired: async () => {
-        try {
-          const newToken = await AuthService.refreshToken();
-          if (!newToken) {
-            throw new Error('Không thể refresh token');
+    const response = await apiInstance.get(
+      '/songs/liked',
+      {
+        token,
+        onTokenExpired: async () => {
+          try {
+            const newToken = await AuthService.refreshToken();
+            if (!newToken) throw new Error('Không thể refresh token');
+            return newToken;
+          } catch (error) {
+            console.error('Không thể refresh token, đăng xuất...', error);
+            await AuthService.logout();
+            return null;
           }
-          return newToken;
-        } catch (error) {
-          console.error('Không thể refresh token, đăng xuất...');
-          await AuthService.logout();
-          return null;
-        }
-      },
-    });
+        },
+      }
+    );
 
-    // Kiểm tra dữ liệu trả về
-    if (!response || !response.playlist || !Array.isArray(response.playlist.songs)) {
-      console.error('Dữ liệu bài hát đã thích không hợp lệ:', response);
-      return [];
+    if (!response) {
+      throw new Error('Không nhận được phản hồi từ server');
+    }
+    if (!response.success) {
+      throw new Error(response.message || 'Không thể lấy danh sách bài hát đã thích');
+    }
+    if (!response.playlist || !Array.isArray(response.playlist.songs)) {
+      console.warn('Dữ liệu playlist không hợp lệ, trả về danh sách rỗng:', response);
+      return { playlist: { songs: [], playlist_id: null, playlist_title: 'Bài hát đã thích' } };
     }
 
-    // Trả về danh sách bài hát đã thích
-    return response.playlist.songs.map(song => ({
-      ...song,
-      liked: true, // Đảm bảo liked là true cho các bài hát trong danh sách đã thích
-    }));
+    return response; // { success: true, playlist: { playlist_id, playlist_title, songs: [...] } }
   } catch (error) {
     console.error('Lỗi khi gọi API getLikedSongs:', error);
+    if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
     throw error;
   }
 };

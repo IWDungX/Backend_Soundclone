@@ -7,13 +7,19 @@ const search = async (query) => {
     if (!token) {
       throw new Error('No token found');
     }
+    if (!query || !query.trim()) {
+      throw new Error('Query is required');
+    }
 
     const response = await apiInstance.get('/search', {
       token,
       params: { query },
       onTokenExpired: AuthService.refreshToken,
     });
-    return response;
+    console.log('Search API response:', response); // Debug response
+    // Kiểm tra nếu response đã là dữ liệu dạng { songs: [], artists: [] }
+    const data = response.data || response;
+    return data;
   } catch (error) {
     console.error('Error searching:', error);
     throw error;

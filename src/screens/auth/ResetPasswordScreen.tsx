@@ -6,10 +6,12 @@ import {
   TextInput,
   Image,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import apiInstance from '../../service/apiInstance';
+import Toast from 'react-native-toast-message';
+import WibuReset from '../../assets/images/wibu/WibuReset';
 
 const ResetPasswordScreen = () => {
   const navigation = useNavigation();
@@ -49,30 +51,49 @@ const ResetPasswordScreen = () => {
   const handleSubmit = async () => {
     if (!validatePasswords()) return;
     setLoading(true);
+    setError('');
     try {
-      // Simulate API reset password
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      Alert.alert(
-        'Thành công',
-        'Mật khẩu đã được đặt lại. Vui lòng đăng nhập.'
-      );
-      navigation.navigate('Login');
+      const response = await apiInstance.post('/password/reset-password', {
+        token,
+        newPassword,
+        confirmPassword,
+      }, {
+        skipAuth: true,
+      });
+      if (response.success) {
+        Toast.show({
+          type: 'success',
+          text1: 'Thành công',
+          text2: response.message || 'Mật khẩu đã được đặt lại. Vui lòng đăng nhập.',
+        });
+        navigation.navigate('LoginScreen');
+      } else {
+        throw new Error(response.errorMessage || 'Đặt lại mật khẩu thất bại');
+      }
     } catch (err) {
-      setError('Có lỗi xảy ra. Vui lòng thử lại sau.');
+      console.error('Lỗi đặt lại mật khẩu:', err);
+      let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
+      if (err.response?.status === 400) {
+        errorMessage = '⚠ Token không hợp lệ hoặc mật khẩu không hợp lệ';
+      } else if (err.response?.data?.errorMessage) {
+        errorMessage = `⚠ ${err.response.data.errorMessage}`;
+      }
+      setError(errorMessage);
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: errorMessage.replace('⚠ ', ''),
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} forceInset={{ top: 'always', bottom: 'always' }}>
       <View style={styles.container}>
         <View style={styles.logoContainer}>
-          <Image
-            source={require('../assets/images/wibu-excep.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <WibuReset width={150} height={150} />
         </View>
         <View style={styles.textContainer}>
           <Text style={styles.title}>Đặt lại mật khẩu</Text>
@@ -87,7 +108,10 @@ const ResetPasswordScreen = () => {
                 placeholder="Mật khẩu mới"
                 placeholderTextColor="#888"
                 value={newPassword}
-                onChangeText={setNewPassword}
+                onChangeText={(text) => {
+                  setNewPassword(text);
+                  setError('');
+                }}
                 secureTextEntry={!showNewPassword}
               />
               <TouchableOpacity
@@ -106,7 +130,10 @@ const ResetPasswordScreen = () => {
                 placeholder="Xác nhận mật khẩu"
                 placeholderTextColor="#888"
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  setError('');
+                }}
                 secureTextEntry={!showConfirmPassword}
               />
               <TouchableOpacity
@@ -134,15 +161,38 @@ const ResetPasswordScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#000', padding: 24 },
-  container: { flex: 1 },
-  logoContainer: { alignItems: 'center', marginBottom: 24 },
-  logo: { width: 150, height: 150 },
-  textContainer: { alignItems: 'center', marginBottom: 32 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-  subtitle: { fontSize: 16, color: '#ccc' },
-  formContainer: { gap: 16 },
-  inputContainer: { position: 'relative' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  container: {
+    flex: 1,
+    padding: 24,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 20,
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#ccc',
+  },
+  formContainer: {
+    gap: 16,
+  },
+  inputContainer: {
+    position: 'relative',
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -153,10 +203,23 @@ const styles = StyleSheet.create({
     height: 50,
     paddingHorizontal: 12,
   },
-  inputIcon: { marginRight: 12 },
-  input: { flex: 1, color: '#fff', fontSize: 16, height: '100%' },
-  eyeIcon: { paddingHorizontal: 12 },
-  errorText: { color: '#ff4444', textAlign: 'center', marginBottom: 16 },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 16,
+    height: '100%',
+  },
+  eyeIcon: {
+    paddingHorizontal: 12,
+  },
+  errorText: {
+    color: '#ff4444',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
   button: {
     backgroundColor: '#1DB954',
     height: 50,
@@ -164,8 +227,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default ResetPasswordScreen;
