@@ -1,152 +1,200 @@
-const { Router } = require("express");
-const { User, userRole, Role} = require("../models");
-const { verifyToken, checkRole, checkPermission} = require("../utils/auth");
-const multer = require('multer'); 
+'use strict';
+const { Router } = require('express');
+const { User, FollowArtist, Artist, userRole, Role } = require('../models');
+const { verifyToken, checkRole, checkPermission } = require('../middleware/auth');
+const multer = require('multer');
 const Minio = require('minio');
+const { bucketName, minioClient } = require('../config/minio');
+const { v4: uuidv4 } = require('uuid');
 
 const usersRouter = Router();
-
-
-const minioClient = new Minio.Client({
-    endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-    port: parseInt(process.env.MINIO_PORT) || 9000,
-    useSSL: process.env.MINIO_USE_SSL === 'true',
-    accessKey: process.env.MINIO_ACCESS_KEY || 'q7sZX6jQCrzTzhFY31Jh',
-    secretKey: process.env.MINIO_SECRET_KEY || '2S9AmIDETfRMTvs2zEjdq1XlIIRq9kE1nNmiFtl9',
-});
-
-const bucketName = process.env.MINIO_BUCKET || 'songs-bucket';
-
 const upload = multer({ storage: multer.memoryStorage() });
 
-const adminOnly = [verifyToken, checkRole('admin')];
-
-usersRouter.get("/", adminOnly, async(req, res) => {
-    try {
-        const users = await User.findAll({
-            attributes: ["user_id", "user_email", "user_name", "user_avatar_url"],
-            include: [
-                {
-                    model: Role,
-                    through: { attributes: [] },
-                    attributes: ["role_id", "role_name"],
-                },
-            ],
-        });
-        res.status(200).json({ success: true, users});
-    } catch(error) {
-        console.error('Lỗi khi khi lấy thông tin người dùng:', error);
-        res.status(500).json({ error: 'Lỗi máy chủ nội bộ' });
+// Lấy thông tin người dùng
+usersRouter.get('/me', verifyToken, async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+    const user = await User.findByPk(user_id, {
+      attributes: ['user_email', 'user_name', 'user_avatar_url', 'user_created_at'],
+    });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
     }
+
+    const followingCount = await FollowArtist.count({
+      where: { user_id },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user_email: user.user_email,
+        user_name: user.user_name,
+        user_avatar_url: user.user_avatar_url,
+        user_created_at: user.user_created_at,
+        following: followingCount,
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy thông tin người dùng:', error);
+    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ' });
+  }
 });
 
-usersRouter.get("/me", verifyToken, async(req, res) => {
-    try {
-        const user = await User.findByPk(user_id, {
-            attributes: ["user_email", "user_name", "user_avatar_url"],
-        });
-        if(!user){
-            return res.status(404).json({ message: "Không tìm thấy người dùng"});
-        }
-        
-        res.status(200).json({ success: true, user});
-    } catch(error){
-        console.error('Lỗi khi khi lấy thông tin người dùng:', error);
-        res.status(500).json({ error: 'Lỗi máy chủ nội bộ' });
+// Cập nhật thông tin người dùng
+usersRouter.put('/me', verifyToken, upload.single('user_avatar_url'), async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+    const { user_name, user_avatar_url } = req.body;
+
+    const targetUser = await User.findByPk(user_id);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
     }
+
+    let imageUrl = targetUser.user_avatar_url;
+
+    if (req.file) {
+      const objectName = `images/users/${Date.now()}-${req.file.originalname}`;
+      await minioClient.putObject(bucketName, objectName, req.file.buffer);
+      imageUrl = `http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/${objectName}`;
+    }
+
+    await targetUser.update({ user_name, user_avatar_url: imageUrl });
+
+    const followingCount = await FollowArtist.count({
+      where: { user_id },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật thông tin thành công',
+      data: {
+        user_email: targetUser.user_email,
+        user_name: targetUser.user_name,
+        user_avatar_url: imageUrl,
+        user_created_at: targetUser.user_created_at,
+        following: followingCount,
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi khi cập nhật:', error);
+    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ' });
+  }
 });
 
-usersRouter.put("/me", verifyToken, upload.single("user_avatar_url"), async(req, res) => {
-    try{
-        const user_id = req.user.userId;
-        const {user_name, user_avatar_url} = req.body;
+// Xóa người dùng
+usersRouter.delete('/me', verifyToken, async (req, res) => {
+  try {
+    const user_id = req.user.userId;
 
-        const targetUser = await User.findByPk(user_id);
-        if(!targetUser){
-            return res.status(404).json({message: "Không tìm thấy người dùng"});
-        }
-
-        let imageUrl = targetUser.user_avatar_url;
-
-        if (req.file) {
-            const objectName = `images/users/${Date.now()}-${req.file.originalname}`;
-            await minioClient.putObject(bucketName, objectName, req.file.buffer);
-            imageUrl = `http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/${objectName}`;
-        }
-
-        await targetUser.update({user_name, user_avatar_url: imageUrl});
-        res.status(200).json({ 
-            success: true,
-            message: "Cập nhập thông tinh thành công",
-            data: targetUser
-        });
-    } catch(error) {
-        console.error('Lỗi khi cập nhật:', error);
-        res.status(500).json({ error: 'Lỗi máy chủ nội bộ' });
+    const user = await User.findByPk(user_id);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Không tìm thấy người dùng' });
     }
+
+    if (user.user_avatar_url) {
+      const imageFilePath = user.user_avatar_url.replace(`http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/`, '');
+      await minioClient.removeObject(bucketName, imageFilePath);
+    }
+
+    await user.destroy();
+    res.status(200).json({ success: true, message: 'Xóa người dùng thành công' });
+  } catch (error) {
+    console.error('Lỗi khi xóa người dùng:', error);
+    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ' });
+  }
 });
 
-usersRouter.put("/:id/role", adminOnly, async (req, res) => {
-    try {
-        const user_id = req.params.id;
-        const { role } = req.body;
+// Theo dõi nghệ sĩ
+usersRouter.post('/me/follow-artists', verifyToken, async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+    const { artist_id } = req.body;
 
-        if (!role) {
-            return res.status(400).json({ message: "Role là bắt buộc" });
-        }
-
-        const targetUser = await User.findByPk(user_id);
-        if (!targetUser) {
-            return res.status(404).json({ message: "Không tìm thấy người dùng" });
-        }
-
-        let foundRole;
-        // Nếu role là số, tìm theo id; nếu không, tìm theo role_name
-        if (!isNaN(role)) {
-            foundRole = await Role.findByPk(Number(role));
-        } else {
-            foundRole = await Role.findOne({ where: { role_name: role } });
-        }
-
-        if (!foundRole) {
-            return res.status(400).json({ message: `Role '${role}' không hợp lệ` });
-        }
-
-        await targetUser.setRoles([foundRole]);
-
-        res.status(200).json({
-            success: true,
-            message: "Cập nhật role thành công",
-        });
-    } catch (error) {
-        console.error('Lỗi khi cập nhật role:', error.message, error.stack);
-        res.status(500).json({ 
-            error: 'Lỗi máy chủ nội bộ', 
-            details: error.message 
-        });
+    if (!artist_id) {
+      return res.status(400).json({ success: false, message: 'artist_id là bắt buộc' });
     }
+
+    const artist = await Artist.findByPk(artist_id);
+    if (!artist) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy nghệ sĩ' });
+    }
+
+    const user = await User.findByPk(user_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' });
+    }
+
+    const existingFollow = await FollowArtist.findOne({
+      where: { user_id, artist_id },
+    });
+    if (existingFollow) {
+      return res.status(400).json({ success: false, message: 'Người dùng đã theo dõi nghệ sĩ này' });
+    }
+
+    const follow = await FollowArtist.create({
+      follow_artist_id: uuidv4(),
+      user_id,
+      artist_id,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Theo dõi nghệ sĩ thành công',
+      data: follow,
+    });
+  } catch (error) {
+    console.error('Lỗi khi theo dõi nghệ sĩ:', error);
+    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ' });
+  }
 });
 
-usersRouter.delete("/me", verifyToken, async(req, res) => {
-    try {
-        const user_id = req.user.userId;
-        
-        const user = await User.findByPk(user_id);
-        if(!user){
-            return res.status(401).json({ message: "Không tìm thấy người dùng"});
-        }
+// Bỏ theo dõi nghệ sĩ
+usersRouter.delete('/me/follow-artists/:artist_id', verifyToken, async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+    const { artist_id } = req.params;
 
-        if(user.user_avatar_url){
-            const imageFilePath = user.user_avatar_url.replace(`http://${process.env.MINIO_PUBLIC_HOST}:${process.env.MINIO_PORT}/${bucketName}/`, '');
-            await minioClient.removeObject(bucketName, imageFilePath);
-        }
-
-        await user.destroy();
-        res.status(200).json({ success: true, message: "Xóa người dùng thành công"});
-    } catch(error){
-        console.error('Lỗi khi khi lấy thông tin người dùng:', error);
-        res.status(500).json({ error: 'Lỗi máy chủ nội bộ' });
+    const follow = await FollowArtist.findOne({
+      where: { user_id, artist_id },
+    });
+    if (!follow) {
+      return res.status(404).json({ success: false, message: 'Người dùng không theo dõi nghệ sĩ này' });
     }
+
+    await follow.destroy();
+    res.status(200).json({ success: true, message: 'Bỏ theo dõi nghệ sĩ thành công' });
+  } catch (error) {
+    console.error('Lỗi khi bỏ theo dõi nghệ sĩ:', error);
+    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ' });
+  }
+});
+
+// Lấy danh sách nghệ sĩ đang theo dõi
+usersRouter.get('/me/follow-artists', verifyToken, async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+
+    const follows = await FollowArtist.findAll({
+      where: { user_id },
+      include: [
+        {
+          model: Artist,
+          attributes: ['artist_id', 'artist_name', 'bio', 'image_url'],
+        },
+      ],
+    });
+
+    const artists = follows.map((follow) => follow.Artist);
+    res.status(200).json({
+      success: true,
+      data: artists,
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy danh sách nghệ sĩ theo dõi:', error);
+    res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ' });
+  }
 });
 
 module.exports = usersRouter;
