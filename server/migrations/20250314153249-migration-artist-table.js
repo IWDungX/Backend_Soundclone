@@ -10,7 +10,7 @@ module.exports = {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
-      name: {
+      artist_name: {
         type: DataTypes.STRING,
         allowNull: false,
       },

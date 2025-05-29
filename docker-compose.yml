@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   db:
     image: mysql:8.0.37
@@ -54,6 +53,7 @@ services:
     volumes:
       - minio_data:/data
     command: server --console-address ":9090" /data
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -63,6 +63,23 @@ services:
       network1:
         ipv4_address: 172.22.0.12
 
+  redis:
+    image: redis:7.2
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--requirepass", "redis_password"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      network1:
+        ipv4_address: 172.22.0.15
   server:
     build:
       context: './server'
@@ -85,13 +102,20 @@ services:
       MINIO_ENDPOINT: 'minio'
       MINIO_PORT: '9000'
       MINIO_USE_SSL: 'false'
-      MINIO_ACCESS_KEY: 'admin'
-      MINIO_SECRET_KEY: 'admin123'
+      MINIO_ACCESS_KEY: 'q7sZX6jQCrzTzhFY31Jh'
+      MINIO_SECRET_KEY: '2S9AmIDETfRMTvs2zEjdq1XlIIRq9kE1nNmiFtl9'
       MINIO_BUCKET: 'songs-bucket'
+      MINIO_PUBLIC_HOST: 'localhost' 
+      MINIO_PUBLIC_PORT: '9000'
+      REDIS_PORT: '6379'
+      REDIS_HOST: 'redis'
+      REDIS_PASSWORD: 'redis_password'
     depends_on:
       db:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       network1:
@@ -110,12 +134,13 @@ services:
       - server
     networks:
       network1:
-        ipv4_address: 172.22.0.14 
+        ipv4_address: 172.22.0.14
     
 
 volumes:
   my-db:
   minio_data:
+  redis_data:
 
 networks:
   network1:

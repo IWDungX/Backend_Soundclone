@@ -13,6 +13,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       playlist_song_id: {
         type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
         allowNull: false,
         primaryKey: true,
       },
