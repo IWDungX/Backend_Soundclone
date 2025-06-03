@@ -6,8 +6,10 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       Song.belongsTo(models.Artist, { foreignKey: 'artist_id' });
       Song.belongsTo(models.Genre, { foreignKey: 'genre_id' });
+      Song.hasMany(models.PlaylistSong, { foreignKey: 'song_id' });
       Song.belongsToMany(models.Playlist, {
-        through: 'playlist_songs',
+        through: models.PlaylistSong,
+        as: 'playlists',
         foreignKey: 'song_id',
         otherKey: 'playlist_id',
       });

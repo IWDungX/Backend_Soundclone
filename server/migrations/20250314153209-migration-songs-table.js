@@ -34,6 +34,10 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      song_createAt:{
+        type: DataTypes.DATE(),
+        allowNull: false,
+      },
     });
   },
 

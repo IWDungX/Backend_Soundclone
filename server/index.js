@@ -1,8 +1,9 @@
+const express = require('express');
 const app = require('./app');
-require('dotenv').config();
+module.exports = app;
 
-const PORT = 3001;
-app.listen(PORT, '0.0.0.0', () => {
-  PORT,
-  console.log(`SoundClone is running at http://172.22.0.13:${PORT}`);
+const PORT = process.env.PORT || 3001
+
+app.listen(PORT, () => {
+  console.log(`SoundClone is running at http://localhost:${PORT}`);
 });

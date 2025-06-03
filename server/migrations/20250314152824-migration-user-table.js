@@ -47,7 +47,6 @@ module.exports = {
       },
     });
 
-    // Thêm index cho user_google_uid để tối ưu tìm kiếm
     await queryInterface.addIndex('users', ['user_google_uid']);
   },
 
