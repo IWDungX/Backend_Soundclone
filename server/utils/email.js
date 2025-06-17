@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
 // Hàm gửi email xác minh (giữ nguyên)
 const sendVerificationEmail = async (userEmail, verificationToken) => {
   try {
-    const verificationUrl = `http://192.168.1.124:15000/api/verify?token=${verificationToken}`;
+    const verificationUrl = `http://192.168.126.223:15000/api/verify?token=${verificationToken}`;
     
     const mailOptions = {
       from: `"SoundClone 🎵" <${process.env.EMAIL_USER}>`,

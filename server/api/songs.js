@@ -12,7 +12,7 @@ songsRouter.get('/', async (req, res, next) => {
         const songs = await Song.findAll({
             order: [['song_createAt', 'DESC']],
             include: [
-                { model: Artist, attributes: ['artist_name'] },
+                { model: Artist, attributes: ['artist_name', 'artist_id'] },
                 { model: Genre, attributes: ['genre_name'] },
             ],
         });

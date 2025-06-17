@@ -1,6 +1,6 @@
 'use strict';
 const { Router } = require('express');
-const { User, FollowArtist, Artist, userRole, Role } = require('../models');
+const { User, FollowArtist, Artist } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
 const usersRouter = Router();
@@ -128,6 +128,7 @@ usersRouter.post('/me/follow-artists', async (req, res) => {
   } catch (error) {
     console.error('Lỗi khi theo dõi nghệ sĩ:', error);
     res.status(500).json({ success: false, error: 'Lỗi máy chủ nội bộ' });
+    
   }
 });
 

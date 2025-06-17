@@ -5,7 +5,7 @@ const { DataTypes } = require('sequelize');
 module.exports = {
   up: async (queryInterface) => {
     await queryInterface.createTable('follow_artists', {
-      follow_song_id: {
+      follow_artist_id: {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,

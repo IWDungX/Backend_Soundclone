@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { Artist } = require('../models');
+const { Artist, Song, Genre } = require('../models');
 
 const artistRouter = Router();
 
@@ -26,6 +26,32 @@ artistRouter.get('/:id', async (req, res) => {
         console.error('Lỗi lấy thông tin nghệ sĩ:', error);
         res.status(500).json({ errorMessage: 'Lỗi máy chủ nội bộ' });
     }
+});
+
+artistRouter.get('/:id/songs', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ errorMessage: 'artist_id là bắt buộc' });
+    }
+
+    const songs = await Song.findAll({
+      where: { artist_id: id },
+      include: [
+        { model: Artist, attributes: ['artist_name', 'artist_id'] },
+        { model: Genre, attributes: ['genre_name'] },
+      ],
+    });
+
+    if (!songs.length) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    res.status(200).json({ success: true, data: songs });
+  } catch (error) {
+    console.error('Lỗi lấy danh sách bài hát:', error);
+    res.status(500).json({ errorMessage: 'Lỗi máy chủ nội bộ' });
+  }
 });
 
 module.exports = artistRouter;
