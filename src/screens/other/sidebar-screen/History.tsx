@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,49 +6,105 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { ArrowLeft, More } from 'iconsax-react-nativejs';
 import useUserStore from '../../../stores/useUserStore';
 import { usePlayerStore } from '../../../stores/usePlayerStore';
-import TrackPlayer from 'react-native-track-player';
+import TrackPlayer, { State } from 'react-native-track-player';
 import { getFullMinioUrl } from '../../../service/minioUrl';
+
+// Debounce utility
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
 
 const History = () => {
   const navigation = useNavigation();
-  const { histories, fetchHistoryByDateRange, deleteHistory, isLoading, error } = useUserStore();
-  const { setCurrentTrack, togglePlay, queue, setIsPlaying } = usePlayerStore(); // Use player store
+  const { histories, fetchHistoryByDateRange, deleteHistory, addHistory, isLoading, error } = useUserStore();
+  const { currentTrack, setCurrentTrack, togglePlay, queue, setIsPlaying, setQueue } = usePlayerStore();
 
+  // Load history when component mounts
   useEffect(() => {
     const to = new Date();
     const from = new Date(to);
-    from.setDate(to.getDate() - 7); // Fetch history for the last 7 days
+    from.setDate(to.getDate() - 7);
     fetchHistoryByDateRange(from.toISOString(), to.toISOString());
   }, [fetchHistoryByDateRange]);
 
-  const groupHistoryByDate = () => {
-    const grouped = {};
+  // Sync TrackPlayer state when screen is focused
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', async () => {
+      try {
+        let state = await TrackPlayer.getState();
+        if (state === State.None) {
+          await TrackPlayer.setupPlayer();
+          state = await TrackPlayer.getState();
+        }
+
+        const queue = await TrackPlayer.getQueue();
+        const currentTrackIndex = await TrackPlayer.getCurrentTrack();
+        if (queue.length > 0) {
+          setQueue(queue);
+          if (currentTrackIndex !== null && queue[currentTrackIndex]) {
+            setCurrentTrack(queue[currentTrackIndex].id, queue[currentTrackIndex]);
+            setIsPlaying(state === State.Playing);
+          }
+        }
+      } catch (error) {
+        console.error('Error syncing TrackPlayer on focus in History:', error);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, setCurrentTrack, setIsPlaying, setQueue]);
+
+  // Filter histories to keep only the latest record for each song
+  const filteredHistories = useMemo(() => {
     if (!Array.isArray(histories)) {
       console.warn('histories không phải là mảng:', histories);
       return [];
     }
 
+    const songMap = new Map();
     histories.forEach(item => {
+      if (item && item.song_id && item.played_at) {
+        const playedAt = new Date(item.played_at).getTime();
+        if (!songMap.has(item.song_id) || playedAt > songMap.get(item.song_id).playedAt) {
+          songMap.set(item.song_id, {
+            ...item,
+            playedAt,
+          });
+        }
+      }
+    });
+
+    return Array.from(songMap.values()).sort((a, b) => b.playedAt - a.playedAt);
+  }, [histories]);
+
+  // Group filtered history by date
+  const groupedHistory = useMemo(() => {
+    const grouped = {};
+
+    filteredHistories.forEach(item => {
       if (item && item.played_at) {
         const dateKey = format(new Date(item.played_at), 'yyyy-MM-dd');
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = [];
-        }
+        if (!grouped[dateKey]) grouped[dateKey] = [];
         grouped[dateKey].push({
           id: item.history_id,
           songId: item.song_id,
           title: item.song_title || 'Không có tiêu đề',
           artist: item.artist_name || 'Không rõ nghệ sĩ',
           artwork: getFullMinioUrl(item.song_image_url) || 'https://picsum.photos/seed/default/200/200',
-          url: getFullMinioUrl(item.song_audio_url) || '',
+          url: getFullMinioUrl(item.song_audio_url),
           playedAt: new Date(item.played_at),
         });
       }
@@ -59,13 +115,38 @@ const History = () => {
       data: grouped[date],
       displayDate: format(new Date(date), 'dd/MM/yyyy'),
     }));
-  };
+  }, [filteredHistories]);
+
+  // Debounced addHistory to avoid frequent API calls
+  const debouncedAddHistory = useCallback(
+    debounce((songId) => {
+      const existingHistory = filteredHistories.find(item => item.song_id === songId);
+      if (existingHistory) {
+        deleteHistory(existingHistory.history_id).then(() => {
+          addHistory(songId);
+        });
+      } else {
+        addHistory(songId);
+      }
+    }, 2000),
+    [addHistory, deleteHistory, filteredHistories]
+  );
 
   const handleSongPress = async (song) => {
     try {
-      // Map the history item to the Song type expected by usePlayerStore
+      // Kiểm tra trạng thái TrackPlayer
+      let state = await TrackPlayer.getState();
+      if (state === State.None) {
+        await TrackPlayer.setupPlayer();
+        state = await TrackPlayer.getState();
+      }
+
+      if (state === State.Error) {
+        throw new Error('TrackPlayer is in an error state');
+      }
+
       const songData = {
-        id: song.songId, // Use songId as the track ID
+        id: song.songId,
         title: song.title,
         artist: song.artist,
         artwork: song.artwork,
@@ -73,30 +154,68 @@ const History = () => {
         lastPlayed: song.playedAt.toISOString(),
       };
 
-      // Check if the song is already in the queue
-      const songInQueue = queue.find(track => track.id === songData.id);
-
-      if (!songInQueue) {
-        // If the song is not in the queue, reset the queue and add the song
-        await TrackPlayer.reset();
-        await TrackPlayer.add(songData);
-        setCurrentTrack(songData.id, songData);
-      } else {
-        // If the song is in the queue, skip to it
-        const queueIndex = queue.findIndex(track => track.id === songData.id);
-        await TrackPlayer.skip(queueIndex);
-        setCurrentTrack(songData.id, songData);
+      if (!songData.url) {
+        throw new Error('Invalid song URL');
       }
 
-      // Start playback
-      await TrackPlayer.play();
-      setIsPlaying(true);
+      if (currentTrack === songData.id) {
+        if (state === State.Paused) {
+          await TrackPlayer.play();
+          setIsPlaying(true);
+        }
+        return;
+      }
 
-      // Optionally navigate to NowPlayingScreen
-      navigation.navigate('NowPlayingScreen', { song: songData });
+      const historySongs = filteredHistories.map(item => ({
+        id: item.song_id,
+        title: item.song_title || 'Không có tiêu đề',
+        artist: item.artist_name || 'Không rõ nghệ sĩ',
+        artwork: getFullMinioUrl(item.song_image_url) || 'https://picsum.photos/seed/default/200/200',
+        url: getFullMinioUrl(item.song_audio_url),
+        lastPlayed: new Date(item.played_at).toISOString(),
+      })).filter(s => s.url);
+
+      if (historySongs.length === 0) {
+        throw new Error('No valid songs to play');
+      }
+
+      const currentQueue = await TrackPlayer.getQueue();
+      const isQueueMatching = currentQueue.length === historySongs.length &&
+        currentQueue.every((track, index) => track.id === historySongs[index].id);
+
+      if (!isQueueMatching) {
+        await TrackPlayer.reset();
+        await TrackPlayer.add(historySongs);
+        setQueue(historySongs);
+      }
+
+      const songIndex = historySongs.findIndex(s => s.id === songData.id);
+      if (songIndex !== -1) {
+        await TrackPlayer.skip(songIndex);
+        await TrackPlayer.play();
+        setCurrentTrack(songData.id, songData);
+        setIsPlaying(true);
+      } else {
+        await TrackPlayer.add(songData);
+        await TrackPlayer.skipToLast();
+        await TrackPlayer.play();
+        setQueue([...queue, songData]);
+        setCurrentTrack(songData.id, songData);
+        setIsPlaying(true);
+      }
+
+      const trackProgress = await TrackPlayer.getProgress();
+      if (trackProgress.position > 30) {
+        debouncedAddHistory(song.songId);
+      }
+
+      navigation.navigate('NowPlayingScreen', {
+        songs: historySongs,
+        initialTrackIndex: songIndex !== -1 ? songIndex : queue.length,
+      });
     } catch (error) {
-      console.error('Error playing song from history:', error);
-      alert('Không thể phát bài hát');
+      console.error('Error playing song from history:', error.message);
+      Alert.alert('Lỗi', error.message || 'Không thể phát bài hát');
     }
   };
 
@@ -105,7 +224,7 @@ const History = () => {
       await deleteHistory(historyId);
     } catch (error) {
       console.error('Lỗi khi xóa lịch sử:', error);
-      alert('Không thể xóa lịch sử');
+      Alert.alert('Lỗi', 'Không thể xóa lịch sử');
     }
   };
 
@@ -163,16 +282,19 @@ const History = () => {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Lỗi: {error}</Text>
         </View>
-      ) : histories.length === 0 ? (
+      ) : filteredHistories.length === 0 ? (
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Chưa có lịch sử nghe nhạc</Text>
         </View>
       ) : (
         <FlatList
-          data={groupHistoryByDate()}
+          data={groupedHistory}
           renderItem={renderDateSection}
           keyExtractor={(item) => item.date}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
           ListEmptyComponent={<Text style={styles.loadingText}>Không có dữ liệu để hiển thị</Text>}
         />
       )}
@@ -180,7 +302,6 @@ const History = () => {
   );
 };
 
-// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,

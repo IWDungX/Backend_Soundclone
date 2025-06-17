@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -21,38 +22,46 @@ import { getFullMinioUrl } from '../../service/minioUrl';
 import { useAuth } from '../../context/AuthContext';
 
 const SearchingScreen = () => {
+  const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [songSuggestions, setSongSuggestions] = useState([]);
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchHistory, setSearchHistory] = useState([]);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth(); // Thêm user để theo dõi trạng thái đăng nhập
   const { setCurrentTrack, togglePlay } = usePlayerStore();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   const SEARCH_HISTORY_KEY = 'search_history';
   const MAX_HISTORY_ITEMS = 5;
 
+  // Xóa lịch sử tìm kiếm khi đăng nhập tài khoản mới
   useEffect(() => {
-    const loadHistory = async () => {
+    const loadAndClearHistory = async () => {
       try {
-        const history = JSON.parse(
+        const storedHistory = JSON.parse(
           (await AsyncStorage.getItem(SEARCH_HISTORY_KEY)) || '[]'
         );
-        setSearchHistory(history);
+        // Nếu user thay đổi (đăng nhập tài khoản mới), xóa lịch sử cũ
+        if (user && storedHistory.length > 0) {
+          await AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify([]));
+          setSearchHistory([]);
+        } else {
+          setSearchHistory(storedHistory);
+        }
       } catch (error) {
-        console.error('Error loading search history:', error);
+        console.error('Error loading/clearing search history:', error);
       }
     };
-    loadHistory();
+    loadAndClearHistory();
     fetchDefaultSongSuggestions();
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [user]); // Theo dõi sự thay đổi của user
 
   const saveSearchHistory = async (query) => {
     const updatedHistory = [
@@ -74,6 +83,7 @@ const SearchingScreen = () => {
     console.log('handleSearch called with query:', query);
     setSearchQuery(query);
     setSearchSuggestions([]);
+    setSongSuggestions([]); // Ẩn gợi ý bài hát khi tìm kiếm
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
       setSearchResults(null);
@@ -233,67 +243,67 @@ const SearchingScreen = () => {
     </TouchableOpacity>
   );
 
- const renderSongItem = ({ item }) => {
-   console.log('Rendering song item:', item);
-   return (
-     <TouchableOpacity
-       style={styles.resultItem}
-       onPress={async () => {
-         try {
-           await TrackPlayer.stop();
-           await TrackPlayer.reset();
-           const songData = {
-             id: item.song_id,
-             title: item.song_title,
-             artist: item.artist_name,
-             artwork: getFullMinioUrl(item.song_image_url) || 'https://via.placeholder.com/60',
-             url: getFullMinioUrl(item.song_audio_url),
-           };
-           console.log('Song data for playback:', songData);
-           await TrackPlayer.add(songData);
-           await setCurrentTrack(songData.id, songData);
-           await togglePlay();
-         } catch (error) {
-           console.error('Error playing song:', error);
-           alert('Không thể phát bài hát: ' + error.message);
-         }
-       }}
-       activeOpacity={0.7}
-     >
-       <Image
-         source={{ uri: getFullMinioUrl(item.song_image_url) || 'https://via.placeholder.com/60' }}
-         style={styles.artwork}
-         onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
-       />
-       <View style={styles.info}>
-         <Text style={styles.title}>{item.song_title || 'No title'}</Text>
-         <Text style={styles.subtitle}>{item.artist_name || 'No artist'}</Text>
-       </View>
-       <Play color="#1DB954" size={24} />
-     </TouchableOpacity>
-   );
- };
+  const renderSongItem = ({ item }) => {
+    console.log('Rendering song item:', item);
+    return (
+      <TouchableOpacity
+        style={styles.resultItem}
+        onPress={async () => {
+          try {
+            await TrackPlayer.stop();
+            await TrackPlayer.reset();
+            const songData = {
+              id: item.song_id,
+              title: item.song_title,
+              artist: item.artist_name,
+              artwork: getFullMinioUrl(item.song_image_url) || 'https://via.placeholder.com/60',
+              url: getFullMinioUrl(item.song_audio_url),
+            };
+            console.log('Song data for playback:', songData);
+            await TrackPlayer.add(songData);
+            await setCurrentTrack(songData.id, songData);
+            await togglePlay();
+          } catch (error) {
+            console.error('Error playing song:', error);
+            alert('Không thể phát bài hát: ' + error.message);
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <Image
+          source={{ uri: getFullMinioUrl(item.song_image_url) || 'https://via.placeholder.com/60' }}
+          style={styles.artwork}
+          onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+        />
+        <View style={styles.info}>
+          <Text style={styles.title}>{item.song_title || 'No title'}</Text>
+          <Text style={styles.subtitle}>{item.artist_name || 'No artist'}</Text>
+        </View>
+        <Play color="#1DB954" size={24} />
+      </TouchableOpacity>
+    );
+  };
 
- const renderArtistItem = ({ item }) => {
-   console.log('Rendering artist item:', item);
-   return (
-     <TouchableOpacity
-       style={styles.resultItem}
-       onPress={() => console.log('Navigate to artist:', item.artist_name)}
-       activeOpacity={0.7}
-     >
-       <Image
-         source={{ uri: getFullMinioUrl(item.image_url) || 'https://via.placeholder.com/60' }}
-         style={styles.artwork}
-         onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
-       />
-       <View style={styles.info}>
-         <Text style={styles.title}>{item.artist_name || 'No name'}</Text>
-         <Text style={styles.subtitle}>Nghệ sĩ</Text>
-       </View>
-     </TouchableOpacity>
-   );
- };
+  const renderArtistItem = ({ item }) => {
+    console.log('Rendering artist item:', item);
+    return (
+      <TouchableOpacity
+        style={styles.resultItem}
+        onPress={() => navigation.navigate('ProfileArtist', { artistId: item.artist_id })}
+        activeOpacity={0.7}
+      >
+        <Image
+          source={{ uri: getFullMinioUrl(item.image_url) || 'https://via.placeholder.com/60' }}
+          style={styles.artwork}
+          onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+        />
+        <View style={styles.info}>
+          <Text style={styles.title}>{item.artist_name || 'No name'}</Text>
+          <Text style={styles.subtitle}>Nghệ sĩ</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -368,7 +378,7 @@ const SearchingScreen = () => {
               })}
             </View>
           )}
-          {songSuggestions.length > 0 && (
+          {!searchResults && songSuggestions.length > 0 && (
             <View style={styles.songSuggestionsContainer}>
               <Text style={styles.sectionTitle}>Gợi ý bài hát</Text>
               <FlatList

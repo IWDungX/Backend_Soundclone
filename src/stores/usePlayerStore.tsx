@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import TrackPlayer, { RepeatMode, State } from 'react-native-track-player';
-import AuthService from '../services/auth';
 import { toggleLike, checkLikeStatus } from '../service/apiLikeSong';
 import getSongs from '../service/apiSong';
 import Toast from 'react-native-toast-message';
@@ -11,6 +10,7 @@ type Song = {
   artist: string;
   artwork: string;
   url: string;
+  artistId: string;
   albumCover?: string;
   duration?: string;
   lastPlayed?: string;
@@ -22,6 +22,7 @@ type PlayerState = {
   currentTrack: string | null;
   currentTrackData: Song | null;
   queue: Song[];
+  originalQueue: Song[];
   isSidebarVisible: boolean;
   isPlaying: boolean;
   isShuffling: boolean;
@@ -31,6 +32,7 @@ type PlayerState = {
   setCurrentTrack: (id: string | null, data: Song | null) => void;
   setSidebarVisible: (visible: boolean) => void;
   setIsPlaying: (playing: boolean) => void;
+  setQueue: (queue: Song[]) => void;
   setIsLiked: (liked: boolean) => void;
   toggleLike: () => Promise<void>;
   togglePlay: () => Promise<void>;
@@ -56,7 +58,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   recentlyPlayed: [],
   currentTrack: null,
   currentTrackData: null,
-  queue: [], // Thêm queue vào state để theo dõi
+  queue: [],
+  originalQueue: [],
   isSidebarVisible: false,
   isPlaying: false,
   isLiked: false,
@@ -64,13 +67,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   repeatMode: RepeatMode.Off,
   setRecentlyPlayed: (songs) => set({ recentlyPlayed: songs }),
   setIsLiked: (liked) => set({ isLiked: liked }),
-  // Giữ nguyên setCurrentTrack như bạn yêu cầu
   setCurrentTrack: (id, data) => {
     set({ currentTrack: id, currentTrackData: data, isLiked: data?.liked || false });
     get().syncLikeStatus();
   },
   setSidebarVisible: (visible) => set({ isSidebarVisible: visible }),
   setIsPlaying: (playing) => set({ isPlaying: playing }),
+  setQueue: (queue) => set({ queue }),
   togglePlay: async () => {
     try {
       const state = await TrackPlayer.getState();
@@ -106,22 +109,29 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
   toggleShuffle: async () => {
-    const { isShuffling, queue } = get();
-    set({ isShuffling: !isShuffling });
-    if (!isShuffling && queue.length > 0) {
-      const currentTrackId = get().currentTrack;
-      const shuffledQueue = [...queue].sort(() => Math.random() - 0.5);
-      await TrackPlayer.reset();
-      await TrackPlayer.add(shuffledQueue);
-      // Tìm index của bài hiện tại trong queue mới
-      const newIndex = shuffledQueue.findIndex(song => song.id === currentTrackId);
-      if (newIndex !== -1) {
-        await TrackPlayer.skip(newIndex);
+      const { isShuffling, originalQueue, currentTrack } = get();
+      const newIsShuffling = !isShuffling;
+      set({ isShuffling: newIsShuffling });
+
+      if (newIsShuffling && originalQueue.length > 0) {
+        // Bật shuffle: Xáo trộn originalQueue
+        const shuffledQueue = [...originalQueue].sort(() => Math.random() - 0.5);
+        await TrackPlayer.reset();
+        await TrackPlayer.add(shuffledQueue);
+        await TrackPlayer.play();
+        set({ queue: shuffledQueue, isPlaying: true });
+      } else if (!newIsShuffling && originalQueue.length > 0) {
+        // Tắt shuffle: Khôi phục originalQueue
+        await TrackPlayer.reset();
+        await TrackPlayer.add(originalQueue);
+        const newIndex = originalQueue.findIndex(song => song.id === currentTrack);
+        if (newIndex !== -1) {
+          await TrackPlayer.skip(newIndex); // Giữ bài hát hiện tại nếu có
+        }
+        await TrackPlayer.play();
+        set({ queue: originalQueue, isPlaying: true });
       }
-      await TrackPlayer.play();
-      set({ isPlaying: true, queue: shuffledQueue });
-    }
-  },
+    },
   toggleRepeat: async () => {
     const { repeatMode } = get();
     const modes = [RepeatMode.Off, RepeatMode.Track, RepeatMode.Queue];
@@ -160,16 +170,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     await TrackPlayer.seekTo(position);
   },
   loadSongs: async () => {
-    try {
-      const songs = await getSongs(); // Giả sử API trả về danh sách bài hát
-      set({ queue: songs, recentlyPlayed: songs.slice(0, 5) });
-      await TrackPlayer.reset();
-      await TrackPlayer.add(songs);
-    } catch (error) {
-      console.error('Error loading songs:', error);
-    }
-  },
-
+      try {
+        const songs = await getSongs(); // Giả sử bạn có hàm này để lấy danh sách bài hát
+        set({ queue: songs, originalQueue: songs, recentlyPlayed: songs.slice(0, 5) });
+        await TrackPlayer.reset();
+        await TrackPlayer.add(songs);
+      } catch (error) {
+        console.error('Error loading songs:', error);
+      }
+    },
   setLikeStatusBySongId: (songId: string, liked: boolean) => {
     const { currentTrackData } = get();
     if (currentTrackData?.id === songId) {
@@ -182,7 +191,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       });
     }
   },
-
   syncLikeStatus: debounced(async () => {
     const { currentTrackData } = get();
     if (!currentTrackData?.id) return;
@@ -202,7 +210,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       console.error('Error syncing like status:', error);
     }
   }, 500),
-
   togglePlayerLike: async () => {
     const { currentTrackData } = get();
     if (!currentTrackData?.id) return;
@@ -211,18 +218,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       const response = await toggleLike(currentTrackData.id);
       if (response.success) {
         const isLiked = response.liked;
-        set({ isLiked });
+        set({ isLiked });[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[
+        ]
         set({
           currentTrackData: {
             ...currentTrackData,
             liked: isLiked,
           },
         });
-        Toast.show({
-          type: 'success',
-          text1: 'Thành công',
-          text2: isLiked ? 'Đã thích bài hát' : 'Đã bỏ thích bài hát',
-        });
+
       } else {
         throw new Error('API request failed');
       }
@@ -232,6 +236,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         type: 'error',
         text1: 'Lỗi',
         text2: 'Không thể thay đổi trạng thái thích bài hát',
+
       });
     }
   },

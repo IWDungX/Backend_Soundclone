@@ -7,17 +7,18 @@ import {
   ScrollView,
   StyleSheet,
   Animated,
-  SafeAreaView,
   Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Sidebar from '../../components/Sidebar';
 import { getSongs } from '../../service/apiSong';
 import { getFullMinioUrl } from '../../service/minioUrl';
 import AuthService from '../../service/auth';
-import TrackPlayer, { Event, useTrackPlayerEvents } from 'react-native-track-player';
+import TrackPlayer, { Event, useTrackPlayerEvents, State } from 'react-native-track-player';
 import { usePlayerStore } from '../../stores/usePlayerStore';
 import { AuthContext } from '../../context/AuthContext';
+import Music from '../../assets/images/logo/Music';
 
 const MOCK_DATA = {
   user: {
@@ -250,31 +251,67 @@ const HomeScreen = () => {
   };
 
   const handleSongPress = async (song) => {
-    const tracks = recentlyPlayed
-      .map((item) => ({
-        id: String(item.id),
-        url: item.url || getFullMinioUrl(song.song_audio_url),
-        title: item.title || song.song_title,
-        artist: item.artist || song.Artist?.artist_name,
-        artwork: item.artwork || getFullMinioUrl(song.song_image_url),
-      }))
-      .filter(t => t.url);
+    try {
+      const { currentTrack, queue, setQueue, isPlaying } = usePlayerStore.getState();
+      const tracks = recentlyPlayed
+        .map((item) => ({
+          id: String(item.id),
+          url: item.url || getFullMinioUrl(song.song_audio_url),
+          title: item.title || song.song_title,
+          artist: item.artist || song.Artist?.artist_name,
+          artwork: item.artwork || getFullMinioUrl(song.song_image_url),
+        }))
+        .filter(t => t.url);
 
-    if (tracks.length === 0) {
-      Alert.alert('Lỗi', 'Danh sách bài hát trống hoặc không hợp lệ');
-      return;
+      if (tracks.length === 0) {
+        Alert.alert('Lỗi', 'Danh sách bài hát trống hoặc không hợp lệ');
+        return;
+      }
+
+      // Kiểm tra xem bài hát được nhấn có phải là bài đang phát không
+      if (currentTrack === String(song.id)) {
+        const state = await TrackPlayer.getState();
+        if (state === State.Paused) {
+          await TrackPlayer.play();
+          usePlayerStore.setState({ isPlaying: true });
+        }
+        return; // Thoát nếu là bài đang phát, không reset
+      }
+
+      // Kiểm tra xem queue hiện tại có khớp với recentlyPlayed không
+      const currentQueue = await TrackPlayer.getQueue();
+      const isQueueMatching = currentQueue.length === tracks.length &&
+        currentQueue.every((track, index) => track.id === tracks[index].id);
+
+      if (!isQueueMatching) {
+        await TrackPlayer.reset();
+        await TrackPlayer.add(tracks);
+        usePlayerStore.setState({ queue: tracks });
+      }
+
+      const trackIndex = tracks.findIndex(t => t.id === String(song.id));
+      if (trackIndex === -1) {
+        Alert.alert('Lỗi', 'Không tìm thấy bài hát trong danh sách');
+        return;
+      }
+
+      // Skip đến bài hát được chọn
+      await TrackPlayer.skip(trackIndex);
+      await TrackPlayer.play();
+      usePlayerStore.setState({
+        currentTrack: song.id,
+        currentTrackData: song,
+        isPlaying: true,
+      });
+
+      navigation.navigate('NowPlayingScreen', {
+        songs: tracks,
+        initialTrackIndex: trackIndex,
+      });
+    } catch (error) {
+      console.error('Error in handleSongPress:', error);
+      Alert.alert('Lỗi', 'Không thể phát bài hát này. Vui lòng thử lại.');
     }
-
-    const trackIndex = tracks.findIndex(t => t.id === String(song.id));
-    if (trackIndex === -1) {
-      Alert.alert('Lỗi', 'Không tìm thấy bài hát trong danh sách');
-      return;
-    }
-
-    navigation.navigate('NowPlayingScreen', {
-      songs: tracks,
-      initialTrackIndex: trackIndex,
-    });
   };
 
   const handlePlaylistPress = (item) => {
@@ -293,7 +330,9 @@ const HomeScreen = () => {
         <View style={styles.header}>
           <Text style={styles.greeting}>{greeting}</Text>
           <TouchableOpacity onPress={toggleSidebar} style={styles.iconButton}>
-            <Image source={{ uri: userData.avatarUrl }} style={styles.avatarImage} />
+            <View style={styles.logoContainer}>
+               <Music width={60} height={60} />
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -482,6 +521,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255,255,255,0.6)',
     paddingHorizontal: 16,
+  },
+  logoContainer: {
+      marginRight: '30%',
   },
 });
 

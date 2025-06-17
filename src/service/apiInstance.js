@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-//const BASE_URL = 'http://192.168.22.72:15000/api';
-const BASE_URL = 'http://192.168.1.205:15000/api';
+const BASE_URL = 'http://192.168.126.223:15000/api';
 
 const apiInstance = {
   async get(endpoint, config = {}) {
@@ -22,7 +21,7 @@ const apiInstance = {
 
   async request(endpoint, method, data = null, config = {}) {
     let isRetrying = false;
-    const token = config.token || null; // Token is passed via config
+    const token = config.token || null;
     const headers = {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -31,14 +30,14 @@ const apiInstance = {
 
     const url = `${BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
-    console.log('Sending API request:', { method, url, data, headers });
+    console.log('apiInstance.request: Sending request at', new Date().toISOString(), { method, url, data, headers });
 
     try {
       const response = await axios({ method, url, headers, data, ...config });
-      console.log('API response:', response.data);
+      console.log('apiInstance.request: Response at', new Date().toISOString(), response.data);
       return response.data;
     } catch (error) {
-      console.error(`Error calling API ${method} ${url}:`, {
+      console.error(`apiInstance.request: Error calling API ${method} ${url} at ${new Date().toISOString()}:`, {
         message: error.message,
         code: error.code,
         response: error.response
@@ -49,34 +48,33 @@ const apiInstance = {
           : null,
       });
 
-      if (error.response?.status === 401 && !config._retry && !config.skipAuth) {
-        config._retry = true;
+      if (error.response?.status === 401 && !isRetrying && config.onTokenExpired) {
+        isRetrying = true;
         try {
-          console.log('Token expired, calling onTokenExpired callback');
-          if (!config.onTokenExpired) throw new Error('No onTokenExpired callback provided');
+          console.log('apiInstance.request: Token expired, attempting to refresh token');
           const newToken = await config.onTokenExpired();
-          if (!newToken) throw new Error('Không thể refresh token: Token mới không hợp lệ');
+          if (!newToken) throw new Error('Refresh token failed: No new token');
 
           const newHeaders = {
-            ...config.headers,
+            ...headers,
             Authorization: `Bearer ${newToken}`,
           };
 
-          console.log('Retrying with new token:', { method, url });
+          console.log('apiInstance.request: Retrying with new token:', { method, url });
 
           const retryResponse = await axios({
             method,
             url,
             data,
-            ...config,
             headers: newHeaders,
+            ...config,
           });
 
-          console.log('Retry response:', retryResponse.data);
+          console.log('apiInstance.request: Retry response:', retryResponse.data);
           return retryResponse.data;
         } catch (refreshError) {
-          console.error('Failed to refresh token:', refreshError.message);
-          throw error;
+          console.error('apiInstance.request: Failed to refresh token:', refreshError.message);
+          throw error; // Ném lại lỗi gốc
         }
       }
       throw error;

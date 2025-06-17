@@ -114,16 +114,32 @@ const usePlaylistStore = create((set) => ({
         duration: song.duration,
       }));
 
-      await TrackPlayer.stop();
-      await TrackPlayer.reset();
-      await TrackPlayer.add(tracks);
-      usePlayerStore.setState({ queue: tracks });
-      await TrackPlayer.skip(0);
-      await TrackPlayer.play();
+      const { currentTrack, queue, setCurrentTrack, setIsPlaying, setQueue } = usePlayerStore.getState();
+      const currentQueue = await TrackPlayer.getQueue();
+      const isQueueMatching = currentQueue.length === tracks.length &&
+        currentQueue.every((track, index) => track.id === tracks[index].id);
+      const isCurrentTrackInPlaylist = tracks.some(track => track.id === currentTrack);
 
-      const { setCurrentTrack, setIsPlaying } = usePlayerStore.getState();
-      setCurrentTrack(tracks[0].id, tracks[0]);
-      setIsPlaying(true);
+      if (!isQueueMatching || !isCurrentTrackInPlaylist) {
+        await TrackPlayer.stop();
+        await TrackPlayer.reset();
+        await TrackPlayer.add(tracks);
+        setQueue(tracks);
+      }
+
+      // Nếu bài hiện tại nằm trong playlist, giữ nguyên vị trí; nếu không, phát từ đầu
+      let trackIndex = 0;
+      if (isCurrentTrackInPlaylist) {
+        trackIndex = tracks.findIndex(track => track.id === currentTrack);
+        if (trackIndex === -1) trackIndex = 0; // Fallback nếu không tìm thấy
+      }
+
+      await TrackPlayer.skip(trackIndex);
+      if (!isQueueMatching || !isCurrentTrackInPlaylist) {
+        await TrackPlayer.play();
+        setCurrentTrack(tracks[trackIndex].id, tracks[trackIndex]);
+        setIsPlaying(true);
+      }
 
       set({ isLoading: false });
       Toast.show({
@@ -134,7 +150,7 @@ const usePlaylistStore = create((set) => ({
     } catch (error) {
       await TrackPlayer.stop();
       await TrackPlayer.reset();
-      usePlayerStore.setState({ queue: [], currentTrack: null, currentTrackData: null, isPlaying: false });
+      usePlayerStore.getState().setState({ queue: [], currentTrack: null, currentTrackData: null, isPlaying: false });
       set({ isLoading: false, error: error.message });
       Toast.show({
         type: 'error',

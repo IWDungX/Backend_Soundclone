@@ -12,22 +12,60 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SearchNormal1, CloseCircle, Add, ArrowLeft } from 'iconsax-react-nativejs';
+import { SearchNormal1, CloseCircle, Add, ArrowLeft } from 'iconsax-react-native';
 import { useNavigation } from '@react-navigation/native';
 import usePlaylistStore from '../../stores/usePlaylistStore';
+import apiArtist from '../../service/apiArtist';
+import AuthService from '../../service/auth';
+import { getFullMinioUrl } from '../../service/minioUrl';
 
 const PlaylistScreen = () => {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
+  const [followedArtists, setFollowedArtists] = useState([]);
+  const [isArtistsLoading, setIsArtistsLoading] = useState(false);
   const navigation = useNavigation();
 
   const { playlists, isLoading, fetchPlaylists, createPlaylist } = usePlaylistStore();
 
   useEffect(() => {
     fetchPlaylists();
+    fetchFollowedArtists();
   }, [fetchPlaylists]);
+
+  const fetchFollowedArtists = async () => {
+    setIsArtistsLoading(true);
+    try {
+      const token = await AuthService.getToken();
+      if (!token) {
+        console.error('Không có mã thông báo để lấy danh sách nghệ sĩ đã theo dõi tại', new Date().toLocaleString());
+        setFollowedArtists([]);
+        return;
+      }
+      const artists = await apiArtist.getFollowedArtists();
+      console.log('Danh sách nghệ sĩ đã theo dõi được lấy tại', new Date().toLocaleString(), ':', artists);
+
+      if (!Array.isArray(artists)) {
+        console.error('Dữ liệu nghệ sĩ không hợp lệ:', artists);
+        setFollowedArtists([]);
+      } else {
+        const mappedArtists = artists.map((artist) => ({
+          id: artist.artist_id,
+          name: artist.artist_name,
+          coverImage: getFullMinioUrl(artist.image_url),
+          bio: artist.bio,
+        }));
+        setFollowedArtists(mappedArtists);
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy danh sách nghệ sĩ đã theo dõi tại', new Date().toLocaleString(), ':', error.message, error.response?.data);
+      setFollowedArtists([]);
+    } finally {
+      setIsArtistsLoading(false);
+    }
+  };
 
   const toggleSearch = () => {
     setIsSearchVisible(!isSearchVisible);
@@ -55,13 +93,26 @@ const PlaylistScreen = () => {
   const handlePlaylistPress = (playlist) => {
     navigation.navigate('SongListScreen', {
       playlistId: playlist.id,
-      playlistTitle: playlist.title, // Sử dụng title
+      playlistTitle: playlist.title,
       coverImage: playlist.coverImage || 'https://picsum.photos/200/200',
     });
   };
 
+  const handleArtistPress = (artist) => {
+    navigation.navigate('ProfileArtist', {
+      artistId: artist.id,
+      artistName: artist.name,
+      coverImage: artist.coverImage,
+      bio: artist.bio,
+    });
+  };
+
   const filteredPlaylists = playlists.filter((item) =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
+    item.title && item.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredArtists = followedArtists.filter((artist) =>
+    artist.name && artist.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -102,6 +153,34 @@ const PlaylistScreen = () => {
           )}
         </View>
         <ScrollView style={styles.content}>
+          <Text style={styles.sectionTitle}>Nghệ sĩ đã theo dõi</Text>
+          {isArtistsLoading ? (
+            <Text style={styles.emptyState}>Đang tải...</Text>
+          ) : filteredArtists.length > 0 ? (
+            filteredArtists.map((artist) => (
+              <TouchableOpacity
+                key={artist.id}
+                style={styles.artistItem}
+                onPress={() => handleArtistPress(artist)}
+              >
+                <Image
+                  source={{ uri: artist.coverImage || 'https://picsum.photos/200/200' }}
+                  style={styles.artistCover}
+                />
+                <View style={styles.artistInfo}>
+                  <Text style={styles.artistName}>{artist.name}</Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.emptyState}>
+              {searchQuery
+                ? 'Không tìm thấy nghệ sĩ nào'
+                : 'Chưa theo dõi nghệ sĩ nào. Hãy theo dõi nghệ sĩ yêu thích của bạn!'}
+            </Text>
+          )}
+
+          <Text style={styles.sectionTitle}>Playlists</Text>
           {isLoading ? (
             <Text style={styles.emptyState}>Đang tải...</Text>
           ) : filteredPlaylists.length > 0 ? (
@@ -231,6 +310,13 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
   },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
+    marginTop: 16,
+  },
   playlistItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,6 +341,26 @@ const styles = StyleSheet.create({
   playlistDetails: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.6)',
+  },
+  artistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  artistCover: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: 12,
+  },
+  artistInfo: {
+    flex: 1,
+  },
+  artistName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#fff',
   },
   emptyState: {
     textAlign: 'center',

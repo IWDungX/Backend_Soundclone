@@ -5,6 +5,7 @@ import AuthService from './auth';
 const getUser = async () => {
   try {
     const token = await AuthService.getToken();
+    console.log('apiUser.getUser: Token at', new Date().toLocaleTimeString(), ':', token ? 'Valid' : 'Null');
     if (!token) {
       throw new Error('Không tìm thấy token');
     }
@@ -14,45 +15,49 @@ const getUser = async () => {
       onTokenExpired: AuthService.refreshToken,
     });
 
-    if (!response || typeof response !== 'object') {
-      throw new Error('Phản hồi từ server không hợp lệ');
+    console.log('apiUser.getUser: Raw response at', new Date().toLocaleTimeString(), ':', JSON.stringify(response, null, 2));
+    if (!response?.success || !response.data) {
+      console.error('apiUser.getUser: Invalid response structure:', response);
+      throw new Error('Phản hồi từ server không hợp lệ hoặc không chứa dữ liệu');
     }
 
-    return response;
+    return response.data;
   } catch (error) {
-    console.error('Lỗi khi lấy thông tin người dùng:', error.message, error.response?.data);
+    console.error('apiUser.getUser: Error at', new Date().toLocaleTimeString(), ':', error.message, 'Response:', error.response?.data);
     throw error;
   }
 };
 
-// Cập nhật thông tin người dùng (dùng FormData)
-const updateUser = async (formData) => {
+// Cập nhật thông tin người dùng (gửi JSON thay vì FormData)
+const updateUser = async (user_name) => {
   try {
+    if (!user_name || typeof user_name !== 'string' || user_name.trim() === '') {
+      throw new Error('Tên người dùng không hợp lệ');
+    }
+
     const token = await AuthService.getToken();
     if (!token) {
       throw new Error('Không tìm thấy token');
     }
 
-    const response = await apiInstance.put('/users/me', formData, {
-      token, // Token được gửi qua config để apiInstance xử lý
-      headers: {
-        'Content-Type': 'multipart/form-data', // FormData yêu cầu Content-Type này
-      },
+    const response = await apiInstance.put('/users/me', { user_name }, {
+      token,
       onTokenExpired: AuthService.refreshToken,
     });
 
-    if (!response || typeof response !== 'object') {
+    if (!response?.success || !response.data) {
+      console.error('apiUser.updateUser: Invalid response structure:', response);
       throw new Error('Phản hồi từ server không hợp lệ');
     }
 
-    return response;
+    return response.data;
   } catch (error) {
     console.error('Lỗi khi cập nhật thông tin người dùng:', error.message, error.response?.data);
     throw error;
   }
 };
 
-// Lấy lịch sử phát nhạc theo khoảng ngày
+// Lấy lịch sử phát nhạc theo khoảng ngày (giữ nguyên mã gốc)
 const getHistoryByDateRange = async () => {
   try {
     const token = await AuthService.getToken();
@@ -77,7 +82,7 @@ const getHistoryByDateRange = async () => {
   }
 };
 
-// Tạo một bản ghi lịch sử phát nhạc
+// Tạo một bản ghi lịch sử phát nhạc (giữ nguyên mã gốc)
 const createHistory = async (songId) => {
   try {
     const token = await AuthService.getToken();
@@ -105,7 +110,7 @@ const createHistory = async (songId) => {
   }
 };
 
-// Xóa một bản ghi lịch sử phát nhạc
+// Xóa một bản ghi lịch sử phát nhạc (giữ nguyên mã gốc)
 const deleteHistory = async (historyId) => {
   try {
     const token = await AuthService.getToken();

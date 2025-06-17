@@ -27,7 +27,7 @@ const PlaylistService = {
         onTokenExpired: handleTokenExpired,
       });
       if (!response.success) throw new Error(response.error || 'Tạo playlist thất bại');
-      return response.playlist;
+      return response.playlists;
     } catch (error) {
       console.error('Lỗi khi tạo playlist:', error.message);
       throw error;
@@ -44,7 +44,7 @@ const PlaylistService = {
         onTokenExpired: handleTokenExpired,
       });
       if (!response.success) throw new Error(response.error || 'Thêm bài hát thất bại');
-      return response.playlist;
+      return response.playlists;
     } catch (error) {
       console.error('Lỗi khi thêm bài hát vào playlist:', error.message);
       throw error;

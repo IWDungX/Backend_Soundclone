@@ -34,7 +34,7 @@ import MoreMenu from '../../components/MoreMenu';
 const NowPlayingScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { songs: initialSongs, initialTrackIndex } = route.params;
+  const { songs: initialSongs, initialTrackIndex } = route.params || {};
 
   const { position, duration } = useProgress(500);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
@@ -43,6 +43,7 @@ const NowPlayingScreen = () => {
     isPlaying,
     isShuffling,
     repeatMode,
+    queue,
     setCurrentTrack,
     togglePlay,
     toggleShuffle,
@@ -50,40 +51,90 @@ const NowPlayingScreen = () => {
     skipToNext,
     skipToPrevious,
     seekTo,
+    setQueue,
+    setIsPlaying,
   } = usePlayerStore();
 
   const didSetup = useRef(false);
   const lastTrack = useRef<number | null>(null);
 
+  // Đồng bộ trạng thái khi màn hình được focus
   useEffect(() => {
     if (didSetup.current) return;
     didSetup.current = true;
 
-    (async () => {
-      const queue = await TrackPlayer.getQueue();
-      const currentTrackIndex = await TrackPlayer.getCurrentTrack();
-      const currentState = await TrackPlayer.getState();
+    const setupPlayer = async () => {
+      try {
+        if (initialSongs && initialSongs.length > 0) {
+          const currentQueue = await TrackPlayer.getQueue();
+          const currentTrackId = currentTrackData?.id;
+          const selectedSong = initialSongs[initialTrackIndex];
 
-      if (queue.length === 0) {
-        await TrackPlayer.reset();
-        await TrackPlayer.add(initialSongs);
-        usePlayerStore.setState({ queue: initialSongs });
-      }
+          if (!selectedSong) return;
 
-      if (
-        initialTrackIndex >= 0 &&
-        initialTrackIndex < initialSongs.length &&
-        currentTrackIndex !== initialTrackIndex
-      ) {
-        await TrackPlayer.skip(initialTrackIndex);
-        if (currentState !== State.Playing) {
-          await TrackPlayer.play();
+          const songWithArtistId = {
+            ...selectedSong,
+            id: selectedSong.id,
+            artistId: selectedSong.artistId,
+          };
+
+          const isSameTrack = currentTrackId === selectedSong.id;
+          const isQueueMatching =
+            currentQueue.length === initialSongs.length &&
+            currentQueue.every((track, index) => track.id === initialSongs[index].id);
+
+          if (isSameTrack) {
+            const state = await TrackPlayer.getState();
+            setIsPlaying(state === State.Playing);
+            if (state === State.Paused) await TrackPlayer.play();
+            setCurrentTrack(selectedSong.id, songWithArtistId);
+            return;
+          }
+
+          if (!isQueueMatching) {
+            await TrackPlayer.reset();
+            await TrackPlayer.add(
+              initialSongs.map(song => ({
+                id: song.id,
+                url: song.url,
+                title: song.title,
+                artist: song.artist,
+                artwork: song.artwork,
+              }))
+            );
+            setQueue(initialSongs);
+          }
+
+          await TrackPlayer.skip(initialTrackIndex);
+          const state = await TrackPlayer.getState();
+          if (state !== State.Playing) await TrackPlayer.play();
+          setCurrentTrack(selectedSong.id, songWithArtistId);
+          setIsPlaying(true);
+        } else if (queue.length > 0) {
+          const currentTrackIndex = await TrackPlayer.getCurrentTrack();
+          const currentTrack = queue[currentTrackIndex];
+          if (currentTrack) {
+            setCurrentTrack(currentTrack.id, currentTrack);
+            const state = await TrackPlayer.getState();
+            setIsPlaying(state === State.Playing);
+          }
         }
-      } else if (currentState !== State.Playing) {
-        await TrackPlayer.play();
+      } catch (err) {
+        console.error('Error in setupPlayer:', err);
       }
-    })();
-  }, []);
+    };
+
+    setupPlayer();
+  }, [
+    initialSongs,
+    initialTrackIndex,
+    currentTrackData?.id,
+    queue.length,
+    setCurrentTrack,
+    setIsPlaying,
+    setQueue,
+  ]);
+
 
   useTrackPlayerEvents(
     [
@@ -97,21 +148,27 @@ const NowPlayingScreen = () => {
     async (event) => {
       if (event.type === Event.PlaybackState) {
         const state = await TrackPlayer.getState();
-        usePlayerStore.setState({ isPlaying: state === State.Playing });
+        setIsPlaying(state === State.Playing);
       } else if (event.type === Event.PlaybackTrackChanged && event.nextTrack != null) {
         if (event.nextTrack === lastTrack.current) return;
         lastTrack.current = event.nextTrack;
 
         const queue = await TrackPlayer.getQueue();
         if (queue[event.nextTrack]) {
-          setCurrentTrack(queue[event.nextTrack].id, queue[event.nextTrack]);
+          const matchingSong = initialSongs?.find(song => song.id === queue[event.nextTrack].id) || queue[event.nextTrack];
+          const songWithArtistId = {
+            ...matchingSong,
+            id: matchingSong.id,
+            artistId: matchingSong.artistId, // Đảm bảo artistId
+          };
+          setCurrentTrack(queue[event.nextTrack].id, songWithArtistId);
         }
       } else if (event.type === Event.RemotePlay) {
         await TrackPlayer.play();
-        usePlayerStore.setState({ isPlaying: true });
+        setIsPlaying(true);
       } else if (event.type === Event.RemotePause) {
         await TrackPlayer.pause();
-        usePlayerStore.setState({ isPlaying: false });
+        setIsPlaying(false);
       } else if (event.type === Event.RemoteNext) {
         await skipToNext();
       } else if (event.type === Event.RemotePrevious) {
@@ -155,9 +212,7 @@ const NowPlayingScreen = () => {
 
       <View style={styles.artworkContainer}>
         <Image
-          source={{
-            uri: currentTrackData.artwork || 'https://placehold.co/300x300',
-          }}
+          source={{ uri: currentTrackData.artwork || 'https://placehold.co/300x300' }}
           style={styles.artwork}
         />
       </View>
@@ -241,7 +296,7 @@ const NowPlayingScreen = () => {
       <MoreMenu
         visible={isMoreMenuVisible}
         onClose={() => setIsMoreMenuVisible(false)}
-        song={currentTrackData}
+        song={{ ...currentTrackData, song_id: currentTrackData.id, artistId: currentTrackData.artistId || initialSongs?.[initialTrackIndex]?.artistId }}
       />
     </SafeAreaView>
   );

@@ -15,69 +15,36 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import { usePlayerStore } from '../stores/usePlayerStore';
-import TrackPlayer from 'react-native-track-player';
-// import RNFetchBlob from 'rn-fetch-blob';
-// import Share from 'react-native-share';
+import { CloseCircle, Add, Profile, Share, DocumentDownload } from 'iconsax-react-native';
 import usePlaylistStore from '../stores/usePlaylistStore';
-import { PermissionsAndroid, Platform } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
 const MoreMenu = ({ visible, onClose, song }) => {
   const navigation = useNavigation();
-  const { setCurrentTrack, togglePlay, queue } = usePlayerStore();
   const { playlists, fetchPlaylists, addSongToPlaylist, isLoading } = usePlaylistStore();
 
   const [playlistModalVisible, setPlaylistModalVisible] = useState(false);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
 
   useEffect(() => {
-    if (visible && playlists.length === 0) { // Chỉ gọi fetchPlaylists nếu playlists rỗng
+    if (visible && playlists.length === 0) {
       fetchPlaylists();
     }
   }, [visible, fetchPlaylists, playlists]);
 
   useEffect(() => {
-    console.log('Playlists in MoreOptionsModal:', playlists);
-  }, [playlists]);
-
-  if (!song) return null;
-
-  const handlePlaySong = async () => {
-    try {
-      const songData = {
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        artwork: song.artwork,
-        url: song.url,
-      };
-
-      const currentQueue = await TrackPlayer.getQueue();
-      const songIndex = currentQueue.findIndex(track => track.id === song.id);
-
-      if (songIndex === -1) {
-        await TrackPlayer.reset();
-        await TrackPlayer.add([songData]);
-        usePlayerStore.setState({ queue: [songData] });
-        await TrackPlayer.skip(0);
-      } else {
-        await TrackPlayer.skip(songIndex);
-      }
-
-      await setCurrentTrack(songData.id, songData);
-      const state = await TrackPlayer.getState();
-      if (state !== TrackPlayer.State.Playing) {
-        await togglePlay();
-      }
-
-      onClose();
-    } catch (error) {
-      console.error('Lỗi khi phát bài hát:', error);
-      usePlayerStore.setState({ isPlaying: false });
+    if (song) {
+      console.log('MoreMenu received song:', song);
+    } else {
+      console.warn('MoreMenu received no song data');
     }
-  };
+  }, [song]);
+
+  if (!song || !song.id || !song.title || !song.artist) {
+    console.warn('Invalid song data in MoreMenu:', song);
+    return null;
+  }
 
   const handleAddToPlaylist = () => {
     setPlaylistModalVisible(true);
@@ -97,81 +64,25 @@ const MoreMenu = ({ visible, onClose, song }) => {
   };
 
   const handleViewArtist = () => {
+    if (!song.artistId) {
+      console.error('Artist ID not found in song:', song);
+      Alert.alert('Lỗi', 'Không tìm thấy ID nghệ sĩ. Vui lòng kiểm tra lại dữ liệu.');
+      return;
+    }
+    navigation.navigate('ProfileArtist', { artistId: song.artistId });
     onClose();
-    // navigation.navigate('ProfileArtist', { artistId: song.artistId });
   };
 
   const handleShareSong = async () => {
-//     try {
-//       const shareOptions = {
-//         title: `Chia sẻ ${song.title}`,
-//         url: song.url,
-//         message: `Nghe bài hát ${song.title} của ${song.artist}: ${song.url}`,
-//         type: 'audio/mpeg',
-//       };
-//
-//       await Share.open(shareOptions);
-//     } catch (error) {
-//       console.error('Lỗi khi chia sẻ:', error);
-//       Alert.alert('Lỗi', 'Không thể chia sẻ bài hát.');
-//     }
     onClose();
   };
 
   const handleDownloadSong = async () => {
-//     try {
-//       if (Platform.OS === 'android') {
-//         const granted = await PermissionsAndroid.request(
-//           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-//           {
-//             title: 'Quyền truy cập bộ nhớ',
-//             message: 'Ứng dụng cần quyền để tải bài hát xuống.',
-//             buttonNeutral: 'Hỏi lại sau',
-//             buttonNegative: 'Hủy',
-//             buttonPositive: 'Đồng ý',
-//           }
-//         );
-//         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-//           Alert.alert('Quyền bị từ chối', 'Không thể tải bài hát mà không có quyền truy cập.');
-//           return;
-//         }
-//       }
-//
-//       const { dirs } = RNFetchBlob.fs;
-//       const downloadDir = Platform.OS === 'ios' ? dirs.DocumentDir : dirs.DownloadDir;
-//       const fileName = `${song.title}.mp3`.replace(/[^a-zA-Z0-9]/g, '_');
-//       const path = `${downloadDir}/${fileName}`;
-//
-//       const response = await RNFetchBlob.config({
-//         fileCache: true,
-//         path: path,
-//         addAndroidDownloads: {
-//           useDownloadManager: true,
-//           notification: true,
-//           title: `Đang tải ${song.title}`,
-//           description: 'Tải bài hát xuống',
-//           mime: 'audio/mpeg',
-//           mediaScannable: true,
-//         },
-//       }).fetch('GET', song.url);
-//
-//       if (response.info().status === 200) {
-//         Alert.alert('Thành công', `Đã tải ${song.title} xuống tại ${path}`);
-//       } else {
-//         Alert.alert('Lỗi', 'Không thể tải bài hát.');
-//       }
-//     } catch (error) {
-//       console.error('Lỗi khi tải bài hát:', error);
-//       Alert.alert('Lỗi', 'Có lỗi xảy ra khi tải bài hát.');
-//     }
     onClose();
   };
 
   const renderPlaylistItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.playlistItem}
-      onPress={() => handleSelectPlaylist(item.id)}
-    >
+    <TouchableOpacity style={styles.playlistItem} onPress={() => handleSelectPlaylist(item.id)}>
       <Text style={styles.playlistTitle}>{item.title}</Text>
       {isLoading && selectedPlaylistId === item.id && (
         <ActivityIndicator size="small" color="#1DB954" />
@@ -180,50 +91,43 @@ const MoreMenu = ({ visible, onClose, song }) => {
   );
 
   return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={visible}
-      onRequestClose={onClose}
-    >
+    <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
             <View style={styles.modalContent}>
               <View style={styles.songInfoContainer}>
-                <Image source={{ uri: song.artwork }} style={styles.songImage} />
+                <Image
+                  source={{ uri: song.artwork || 'https://via.placeholder.com/150' }}
+                  style={styles.songImage}
+                />
                 <View style={styles.songDetails}>
                   <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
                   <Text style={styles.songArtist} numberOfLines={1}>{song.artist}</Text>
                 </View>
                 <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                  <Icon name="close" size={24} color="#fff" />
+                  <CloseCircle size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
 
               <ScrollView style={styles.optionsContainer}>
-                <TouchableOpacity style={styles.option} onPress={handlePlaySong}>
-                  <Icon name="play-circle-outline" size={24} color="#fff" />
-                  <Text style={styles.optionText}>Phát</Text>
-                </TouchableOpacity>
-
                 <TouchableOpacity style={styles.option} onPress={handleAddToPlaylist}>
-                  <Icon name="add-circle-outline" size={24} color="#fff" />
+                  <Add size={24} color="#fff" />
                   <Text style={styles.optionText}>Thêm vào playlist</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.option} onPress={handleViewArtist}>
-                  <Icon name="person-outline" size={24} color="#fff" />
+                  <Profile size={24} color="#fff" />
                   <Text style={styles.optionText}>Xem nghệ sĩ</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.option} onPress={handleShareSong}>
-                  <Icon name="share-social-outline" size={24} color="#fff" />
+                  <Share size={24} color="#fff" />
                   <Text style={styles.optionText}>Chia sẻ</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.option} onPress={handleDownloadSong}>
-                  <Icon name="download-outline" size={24} color="#fff" />
+                  <DocumentDownload size={24} color="#fff" />
                   <Text style={styles.optionText}>Tải xuống</Text>
                 </TouchableOpacity>
               </ScrollView>

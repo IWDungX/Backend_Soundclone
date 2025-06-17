@@ -8,13 +8,13 @@ import {
   StyleSheet,
   StatusBar,
   Platform,
+  SafeAreaView,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Play, Pause, MoreCircle } from 'iconsax-react-nativejs';
-import TrackPlayer from 'react-native-track-player';
+import TrackPlayer, { State } from 'react-native-track-player';
 import usePlaylistStore from '../../stores/usePlaylistStore';
 import { usePlayerStore } from '../../stores/usePlayerStore';
 import { getFullMinioUrl } from '../../service/minioUrl';
@@ -70,16 +70,7 @@ const SongListScreen = () => {
 
   const handleSongPress = async (song) => {
     try {
-      const currentQueue = await TrackPlayer.getQueue();
-      const songData = {
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        artwork: song.artwork,
-        url: song.url,
-      };
-
-      // Kiểm tra xem queue hiện tại có khớp với playlist không
+      const { currentTrack, queue, setCurrentTrack, togglePlay } = usePlayerStore.getState();
       const playlistSongs = playlist.songs.map(s => ({
         id: s.id,
         url: s.url,
@@ -88,28 +79,35 @@ const SongListScreen = () => {
         artwork: s.artwork,
       }));
 
+      // Kiểm tra xem bài hát được nhấn có phải là bài đang phát không
+      if (currentTrack === String(song.id)) {
+        const state = await TrackPlayer.getState();
+        if (state === State.Paused) {
+          await TrackPlayer.play();
+          usePlayerStore.setState({ isPlaying: true });
+        }
+        return; // Thoát nếu là bài đang phát, không reset
+      }
+
+      const currentQueue = await TrackPlayer.getQueue();
       const isQueueMatching = currentQueue.length === playlistSongs.length &&
         currentQueue.every((track, index) => track.id === playlistSongs[index].id);
 
       if (!isQueueMatching) {
-        // Nếu queue không khớp, reset và thêm toàn bộ playlist
         await TrackPlayer.reset();
         await TrackPlayer.add(playlistSongs);
-        // Cập nhật queue trong usePlayerStore
         usePlayerStore.setState({ queue: playlistSongs });
       }
 
-      // Tìm index của bài hát trong queue
-      const songIndex = playlistSongs.findIndex(s => s.id === song.id);
+      const songIndex = playlistSongs.findIndex(s => s.id === String(song.id));
       if (songIndex !== -1) {
         await TrackPlayer.skip(songIndex);
-        // Cập nhật currentTrack trong usePlayerStore
-        setCurrentTrack(songData.id, songData);
-        // Nếu không đang phát, gọi togglePlay để phát
         const state = await TrackPlayer.getState();
-        if (state !== TrackPlayer.State.Playing) {
-          await togglePlay();
+        if (state !== State.Playing) {
+          await TrackPlayer.play();
         }
+        setCurrentTrack(song.id, song);
+        usePlayerStore.setState({ isPlaying: true });
       }
     } catch (error) {
       console.error("Error playing song:", error);

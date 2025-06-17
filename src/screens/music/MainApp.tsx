@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HomeScreen from './HomeScreen';
@@ -16,7 +15,7 @@ const MainApp = () => {
   const TAB_BAR_HEIGHT = 50;
 
   return (
-    <SafeAreaView style={styles.container} forceInset={{ top: 'always', bottom: 'never' }}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
       <Tab.Navigator
         screenOptions={({ route }) => ({
@@ -46,10 +45,10 @@ const MainApp = () => {
         <Tab.Screen name="PlaylistScreen" component={PlaylistScreen} />
       </Tab.Navigator>
 
-      <View style={[styles.musicBarContainer]}>
+      <View style={styles.musicBarContainer}>
         <MusicPlayerBar />
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -60,7 +59,7 @@ const styles = StyleSheet.create({
   },
   musicBarContainer: {
     position: 'absolute',
-    bottom: '10.5%',
+    bottom: '6%',
     left: 0,
     right: 0,
   },

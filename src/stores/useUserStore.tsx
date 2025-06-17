@@ -3,19 +3,20 @@ import EncryptedStorage from 'react-native-encrypted-storage';
 import apiUser from '../service/apiUser';
 import AuthService from '../service/auth';
 import { toggleLike, checkLikeStatus, getLikedSongs } from '../service/apiLikeSong';
+import TrackPlayer from 'react-native-track-player';
+import { usePlayerStore } from './usePlayerStore';
+import Toast from 'react-native-toast-message'; // Thêm Toast để thông báo
 
-// Định nghĩa kiểu UserProfile
+// Định nghĩa kiểu UserProfile (bỏ avatar_url)
 interface UserProfile {
   user_name: string;
-  full_name: string;
-  email: string;
-  avatar: string;
+  user_email: string;
   is_premium: boolean;
-  created_at: string;
+  user_created_at: string;
   following_count: number;
 }
 
-// Định nghĩa kiểu History
+// Định nghĩa kiểu History (giữ nguyên)
 interface History {
   history_id: string;
   song_id: string;
@@ -26,6 +27,15 @@ interface History {
   user_name: string;
   played_at: string;
 }
+
+// Hàm ánh xạ dữ liệu API sang UserProfile
+const mapApiUserToProfile = (apiData: any): UserProfile => ({
+  user_name: apiData.user_name || '',
+  user_email: apiData.user_email || '',
+  is_premium: apiData.is_premium || false, // Giả định is_premium từ API hoặc mặc định false
+  user_created_at: apiData.user_created_at || new Date().toISOString(),
+  following_count: apiData.following || 0,
+});
 
 const useUserStore = create((set, get) => ({
   isAuthenticated: false,
@@ -40,29 +50,9 @@ const useUserStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const token = await AuthService.getToken();
-      if (token) {
-        const user = await apiUser.getUser();
-        const mappedUser = mapApiUserToProfile(user);
-
-        const songs = await getLikedSongs();
-        const likedSongIds = Array.isArray(songs)
-          ? new Set(songs.map(song => song.song_id))
-          : new Set();
-
-        // Lấy lịch sử phát nhạc theo khoảng thời gian (mặc định hoặc tùy chỉnh)
-        const historyResponse = await apiUser.getHistoryByDateRange();
-        const histories = Array.isArray(historyResponse.data.histories)
-          ? historyResponse.data.histories
-          : [];
-
-        set({
-          isAuthenticated: true,
-          user: mappedUser,
-          likedSongIds,
-          histories,
-          isLoading: false,
-        });
-      } else {
+      console.log('initializeAuth: Token at', new Date().toLocaleTimeString(), ':', token ? 'Valid' : 'Null');
+      if (!token) {
+        console.log('initializeAuth: No token, resetting state');
         set({
           isAuthenticated: false,
           user: null,
@@ -70,9 +60,32 @@ const useUserStore = create((set, get) => ({
           histories: [],
           isLoading: false,
         });
+        return;
       }
-    } catch (error) {
-      console.error('Initialize Auth Error:', error.message);
+
+      const userData = await apiUser.getUser();
+      console.log('initializeAuth: API response at', new Date().toLocaleTimeString(), ':', JSON.stringify(userData, null, 2));
+      const mappedUser = mapApiUserToProfile(userData);
+
+      const songs = await getLikedSongs();
+      const likedSongIds = Array.isArray(songs)
+        ? new Set(songs.map(song => song.song_id))
+        : new Set();
+
+      const historyResponse = await apiUser.getHistoryByDateRange();
+      const histories = Array.isArray(historyResponse?.data?.histories)
+        ? historyResponse.data.histories
+        : [];
+
+      set({
+        isAuthenticated: true,
+        user: mappedUser,
+        likedSongIds,
+        histories,
+        isLoading: false,
+      });
+    } catch (error: any) {
+      console.error('initializeAuth: Error at', new Date().toLocaleTimeString(), ':', error.message, error.stack);
       set({
         isAuthenticated: false,
         user: null,
@@ -81,7 +94,6 @@ const useUserStore = create((set, get) => ({
         isLoading: false,
         error: error.message || 'Failed to initialize authentication',
       });
-      throw error;
     }
   },
 
@@ -89,42 +101,31 @@ const useUserStore = create((set, get) => ({
   fetchUser: async () => {
     set({ isLoading: true, error: null });
     try {
-      const user = await apiUser.getUser();
-      const mappedUser = mapApiUserToProfile(user);
+      const userData = await apiUser.getUser();
+      console.log('fetchUser: API response at', new Date().toLocaleTimeString(), ':', JSON.stringify(userData, null, 2));
+      const mappedUser = mapApiUserToProfile(userData);
       set({ user: mappedUser, isLoading: false });
-    } catch (error) {
-      console.error('Fetch User Error:', error.message);
+    } catch (error: any) {
+      console.error('fetchUser: Error at', new Date().toLocaleTimeString(), ':', error.message, error.response?.data);
       set({ error: error.message || 'Failed to fetch user data', isLoading: false });
-      throw error;
     }
   },
 
-  // Cập nhật thông tin người dùng
-  updateUser: async (userData: UserProfile, avatarFile: any) => {
+  // Cập nhật thông tin người dùng (gửi JSON với user_name)
+  updateUser: async (user_name: string) => {
     set({ isLoading: true, error: null });
     try {
-      const formData = new FormData();
-      formData.append('user_name', userData.user_name);
-      formData.append('user_email', userData.email);
-      formData.append('fullName', userData.full_name);
-      if (avatarFile && avatarFile.uri) {
-        formData.append('avatar', {
-          uri: avatarFile.uri,
-          name: avatarFile.fileName || 'avatar.jpg',
-          type: avatarFile.type || 'image/jpeg',
-        });
-      }
-
-      const updatedUser = await apiUser.updateUser(formData);
-      const mappedUser = mapApiUserToProfile(updatedUser);
+      const userData = await apiUser.updateUser(user_name);
+      console.log('updateUser: API response at', new Date().toLocaleTimeString(), ':', JSON.stringify(userData, null, 2));
+      const mappedUser = mapApiUserToProfile(userData);
       set({ user: mappedUser, isLoading: false });
-    } catch (error) {
-      set({ error: error.message, isLoading: false });
-      throw error;
+    } catch (error: any) {
+      console.error('updateUser: Error at', new Date().toLocaleTimeString(), ':', error.message, error.response?.data);
+      set({ error: error.message || 'Failed to update user data', isLoading: false });
     }
   },
 
-  // Xóa tài khoản người dùng
+  // Xóa người dùng
   deleteUser: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -133,13 +134,11 @@ const useUserStore = create((set, get) => ({
       set({
         user: null,
         isAuthenticated: false,
-        likedSongIds: new Set(),
-        histories: [],
         isLoading: false,
       });
-    } catch (error) {
-      set({ error: error.message, isLoading: false });
-      throw error;
+    } catch (error: any) {
+      console.error('deleteUser: Error at', new Date().toLocaleTimeString(), ':', error.message, error.response?.data);
+      set({ error: error.message || 'Failed to delete user', isLoading: false });
     }
   },
 
@@ -147,29 +146,50 @@ const useUserStore = create((set, get) => ({
   login: async (token: string, refreshToken: string) => {
     set({ isLoading: true, error: null });
     try {
+      // Xóa trạng thái cũ trước khi đăng nhập tài khoản mới
+      await TrackPlayer.stop();
+      await TrackPlayer.reset();
+      usePlayerStore.setState({
+        queue: [],
+        currentTrack: null,
+        currentTrackData: null,
+        isPlaying: false,
+      });
+
       await EncryptedStorage.setItem('token', token);
       await EncryptedStorage.setItem('refreshToken', refreshToken);
-      const response = await apiUser.getUser();
-      if (response.success) {
-        const mappedUser = mapApiUserToProfile(response.data);
-        const songs = await getLikedSongs();
-        const likedSongIds = new Set(songs.map(song => song.song_id));
-        const historyResponse = await apiUser.getHistoryByDateRange();
-        const histories = Array.isArray(historyResponse.data.histories)
-          ? historyResponse.data.histories
-          : [];
-        set({
-          isAuthenticated: true,
-          user: mappedUser,
-          likedSongIds,
-          histories,
-          isLoading: false,
-        });
-      } else {
-        throw new Error('Login failed');
-      }
-    } catch (error) {
-      set({ error: error.message, isLoading: false });
+      const userData = await apiUser.getUser();
+      console.log('login: API response at', new Date().toLocaleTimeString(), ':', JSON.stringify(userData, null, 2));
+      const mappedUser = mapApiUserToProfile(userData);
+
+      const songs = await getLikedSongs();
+      const likedSongIds = new Set(songs.map(song => song.song_id));
+      const historyResponse = await apiUser.getHistoryByDateRange();
+      const histories = Array.isArray(historyResponse.data.histories)
+        ? historyResponse.data.histories
+        : [];
+
+      set({
+        isAuthenticated: true,
+        user: mappedUser,
+        likedSongIds,
+        histories,
+        isLoading: false,
+      });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Thành công',
+        text2: 'Đăng nhập thành công',
+      });
+    } catch (error: any) {
+      console.error('login: Error at', new Date().toLocaleTimeString(), ':', error.message, error.stack);
+      set({ error: error.message || 'Login failed', isLoading: false });
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: error.message || 'Đăng nhập thất bại',
+      });
       throw error;
     }
   },
@@ -178,7 +198,24 @@ const useUserStore = create((set, get) => ({
   logout: async () => {
     set({ isLoading: true, error: null });
     try {
+      // Dừng và xóa hàng đợi của TrackPlayer
+      await TrackPlayer.stop();
+      await TrackPlayer.reset();
+
+      // Xóa trạng thái của usePlayerStore (thay RepeatMode.Off bằng 0)
+      usePlayerStore.setState({
+        queue: [],
+        currentTrack: null,
+        currentTrackData: null,
+        isPlaying: false,
+        isShuffling: false,
+        repeatMode: 0, // Thay RepeatMode.Off bằng 0
+      });
+
+      // Gọi API đăng xuất
       await AuthService.logout();
+
+      // Cập nhật trạng thái sau khi đăng xuất thành công
       set({
         user: null,
         isAuthenticated: false,
@@ -187,21 +224,33 @@ const useUserStore = create((set, get) => ({
         isLoading: false,
         error: null,
       });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Thành công',
+        text2: 'Đăng xuất thành công',
+      });
     } catch (error) {
       console.error('Lỗi đăng xuất:', error);
+      // Dù có lỗi, vẫn đảm bảo trạng thái được đặt lại
       set({
         user: null,
         isAuthenticated: false,
         likedSongIds: new Set(),
         histories: [],
         isLoading: false,
-        error: error.message,
+        error: error.message || 'Đăng xuất thất bại',
+      });
+      Toast.show({
+        type: 'error',
+        text1: 'Lỗi',
+        text2: error.message || 'Đăng xuất thất bại',
       });
       throw error;
     }
   },
 
-  // Lấy danh sách bài hát đã thích
+  // Lấy danh sách bài hát đã thích (giữ nguyên)
   fetchLikedSongs: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -214,7 +263,7 @@ const useUserStore = create((set, get) => ({
     }
   },
 
-  // Thích hoặc bỏ thích bài hát
+  // Thích hoặc bỏ thích bài hát (giữ nguyên)
   toggleLikeSong: async (songId: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -236,7 +285,7 @@ const useUserStore = create((set, get) => ({
     }
   },
 
-  // Kiểm tra trạng thái liked của một bài hát
+  // Kiểm tra trạng thái liked của một bài hát (giữ nguyên)
   checkIsLiked: async (songId: string) => {
     const { likedSongIds } = get();
     if (likedSongIds.has(songId)) {
@@ -257,7 +306,7 @@ const useUserStore = create((set, get) => ({
     }
   },
 
-  // Lấy lịch sử phát nhạc theo khoảng thời gian
+  // Lấy lịch sử phát nhạc theo khoảng thời gian (giữ nguyên)
   fetchHistoryByDateRange: async (from = null, to = null) => {
     try {
       set({ isLoading: true, error: null });
@@ -286,41 +335,41 @@ const useUserStore = create((set, get) => ({
     }
   },
 
-  // Thêm lịch sử phát nhạc
+  // Thêm lịch sử phát nhạc (giữ nguyên)
   addHistory: async (songId: string) => {
-      set({ isLoading: true, error: null });
-      try {
-        const { histories } = get();
-        const lastHistory = histories[0];
-        const now = new Date();
-        const lastPlayedTime = lastHistory ? new Date(lastHistory.played_at) : null;
+    set({ isLoading: true, error: null });
+    try {
+      const { histories } = get();
+      const lastHistory = histories[0];
+      const now = new Date();
+      const lastPlayedTime = lastHistory ? new Date(lastHistory.played_at) : null;
 
-        // Kiểm tra trùng lặp: song_id giống và thời gian cách nhau dưới 30 giây
-        if (lastHistory && lastHistory.song_id === songId) {
-          const timeDiff = lastPlayedTime ? (now.getTime() - lastPlayedTime.getTime()) / 1000 : Infinity;
-          if (timeDiff < 30) {
-            console.log('Bỏ qua lưu lịch sử: Bài hát trùng và thời gian quá gần');
-            set({ isLoading: false });
-            return;
-          }
+      // Kiểm tra trùng lặp: song_id giống và thời gian cách nhau dưới 30 giây
+      if (lastHistory && lastHistory.song_id === songId) {
+        const timeDiff = lastPlayedTime ? (now.getTime() - lastPlayedTime.getTime()) / 1000 : Infinity;
+        if (timeDiff < 30) {
+          console.log('Bỏ qua lưu lịch sử: Bài hát trùng và thời gian quá gần');
+          set({ isLoading: false });
+          return;
         }
-
-        // Gọi API để lưu lịch sử
-        const response = await apiUser.createHistory(songId);
-        if (response.data) {
-          set((state) => ({
-            histories: [response.data, ...state.histories].slice(0, 50), // Giới hạn 50 bản ghi
-            isLoading: false,
-          }));
-        }
-      } catch (error) {
-        console.error('Thêm lịch sử thất bại:', error.message);
-        set({ error: error.message || 'Thêm lịch sử thất bại', isLoading: false });
-        throw error;
       }
+
+      // Gọi API để lưu lịch sử
+      const response = await apiUser.createHistory(songId);
+      if (response.data) {
+        set((state) => ({
+          histories: [response.data, ...state.histories].slice(0, 50), // Giới hạn 50 bản ghi
+          isLoading: false,
+        }));
+      }
+    } catch (error) {
+      console.error('Thêm lịch sử thất bại:', error.message);
+      set({ error: error.message || 'Thêm lịch sử thất bại', isLoading: false });
+      throw error;
+    }
   },
 
-  // Xóa lịch sử phát nhạc
+  // Xóa lịch sử phát nhạc (giữ nguyên)
   deleteHistory: async (historyId: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -336,21 +385,10 @@ const useUserStore = create((set, get) => ({
     }
   },
 
-  // Xóa lỗi
+  // Xóa lỗi (giữ nguyên)
   clearError: () => {
     set({ error: null });
   },
 }));
-
-// Hàm ánh xạ dữ liệu từ API sang kiểu UserProfile
-const mapApiUserToProfile = (apiData: any): UserProfile => ({
-  user_name: apiData.user_name || '',
-  full_name: apiData.full_name || apiData.user_name || '',
-  email: apiData.user_email || '',
-  avatar: apiData.user_avatar_url || 'https://i.pravatar.cc/150',
-  is_premium: false,
-  created_at: apiData.user_created_at || '',
-  following_count: apiData.following || 0,
-});
 
 export default useUserStore;

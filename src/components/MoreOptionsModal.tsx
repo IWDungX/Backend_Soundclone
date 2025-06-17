@@ -11,7 +11,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { CloseCircle, Play, Minus, Profile, Share, DocumentDownload } from 'iconsax-react-nativejs';
 import { useNavigation } from '@react-navigation/native';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import TrackPlayer from 'react-native-track-player';
@@ -120,35 +120,35 @@ const MoreOptionsModal = ({ visible, onClose, song, playlistId }) => {
                   <Text style={styles.songArtist} numberOfLines={1}>{song.artist}</Text>
                 </View>
                 <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                  <Icon name="close" size={24} color="#fff" />
+                  <CloseCircle size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
 
               <ScrollView style={styles.optionsContainer}>
                 <TouchableOpacity style={styles.option} onPress={handlePlaySong}>
-                  <Icon name="play-circle-outline" size={24} color="#fff" />
+                  <Play size={24} color="#fff" />
                   <Text style={styles.optionText}>Phát</Text>
                 </TouchableOpacity>
 
                 {playlistId && (
                   <TouchableOpacity style={styles.option} onPress={handleRemoveFromPlaylist}>
-                    <Icon name="remove-circle-outline" size={24} color="#fff" />
+                    <Minus size={24} color="#fff" />
                     <Text style={styles.optionText}>Xóa khỏi playlist</Text>
                   </TouchableOpacity>
                 )}
 
                 <TouchableOpacity style={styles.option} onPress={handleViewArtist}>
-                  <Icon name="person-outline" size={24} color="#fff" />
+                  <Profile size={24} color="#fff" />
                   <Text style={styles.optionText}>Xem nghệ sĩ</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.option} onPress={handleShareSong}>
-                  <Icon name="share-social-outline" size={24} color="#fff" />
+                  <Share size={24} color="#fff" />
                   <Text style={styles.optionText}>Chia sẻ</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.option} onPress={handleDownloadSong}>
-                  <Icon name="download-outline" size={24} color="#fff" />
+                  <DocumentDownload size={24} color="#fff" />
                   <Text style={styles.optionText}>Tải xuống</Text>
                 </TouchableOpacity>
               </ScrollView>

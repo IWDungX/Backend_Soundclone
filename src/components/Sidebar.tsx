@@ -3,7 +3,6 @@ import React from 'react';
 import {
   Animated,
   Image,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,10 +11,12 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { User, Notification, Clock, Setting2, InfoCircle, Logout, ArrowRight } from 'iconsax-react-nativejs';
 import useUserStore from '../stores/useUserStore';
 import LoginScreen from '../screens/auth/LoginScreen';
 import History from '../screens/other/sidebar-screen/History';
+import Music from '../assets/images/logo/Music';
 
 const COLORS = {
   background: '#121212',
@@ -145,12 +146,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, onClose, userData, transla
         </View>
 
         <View style={styles.userInfo}>
-          <Image
-            source={{ uri: userData?.user_avatar_url || 'https://picsum.photos/seed/user123/100/100' }}
-            style={styles.avatar}
-          />
-          <Text style={styles.userName}>{userData?.user_name || 'Tên không rõ'}</Text>
-          <Text style={styles.userEmail}>{userData?.user_email || 'Email không rõ'}</Text>
+          <Music width={100} height={100} />
+          <Text style={styles.userName}>{user?.user_name || 'Tên không rõ'}</Text>
+          <Text style={styles.userEmail}>{user?.user_email || 'Email không rõ'}</Text>
           {userData?.premium && (
             <View style={styles.premiumBadge}>
               <Text style={styles.premiumText}>Premium</Text>

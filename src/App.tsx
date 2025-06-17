@@ -14,6 +14,9 @@ import NowPlayingScreen from './screens/music/NowPlayingScreen';
 import SongListScreen from './screens/music/SongListScreen';
 import MainApp from './screens/music/MainApp';
 import ProfileScreen from './screens/other/sidebar-screen/ProfileScreen';
+import SearchingScreen from './screens/music/SearchingScreen';
+import ProfileArtist from './screens/music/ProfileArtist';
+import SettingsScreen from './screens/other/sidebar-screen/SettingsScreen';
 import IntroductionScreen from './screens/other/sidebar-screen/IntroductionScreen';
 import History from './screens/other/sidebar-screen/History';
 import { useSetupPlayer } from './hooks/useSetupTrackPlayer';
@@ -53,6 +56,9 @@ const AppNavigator = () => {
             <Stack.Screen name="ResetPasswordScreen" component={ResetPasswordScreen} />
             <Stack.Screen name="OtpScreen" component={OtpScreen} />
             <Stack.Screen name="History" component={History} />
+            <Stack.Screen name="ProfileArtist" component={ProfileArtist} />
+            <Stack.Screen name="SearchingScreen" component={SearchingScreen} />
+            <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
           </>
         ) : (
           <>
@@ -67,6 +73,9 @@ const AppNavigator = () => {
             <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
             <Stack.Screen name="IntroductionScreen" component={IntroductionScreen} />
             <Stack.Screen name="History" component={History} />
+            <Stack.Screen name="ProfileArtist" component={ProfileArtist} />
+            <Stack.Screen name="SearchingScreen" component={SearchingScreen} />
+            <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
           </>
         )}
       </Stack.Navigator>
