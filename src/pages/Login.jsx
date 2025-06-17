@@ -22,7 +22,7 @@ const Login = ({ onLogin }) => {
             console.log('Kết quả đăng nhập:', response);
 
             if (response.success && response.token) {
-                localStorage.setItem('authToken', response.token);
+                localStorage.setItem('token', response.token);
                 navigate('/dashboard');
             } else {
                 setLoginError(response.errorMessage || 'Thông tin đăng nhập không hợp lệ');

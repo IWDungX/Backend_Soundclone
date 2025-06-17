@@ -1,128 +1,153 @@
-import React, { useState } from 'react';
-import Navbar from '../components/Navbar';
-import Form from '../components/Form';
+// UserManager.jsx
+import React, { useEffect, useState } from 'react';
+import { fetchUsers, updateRole, deleteUser } from '../services/apiUsers';
 import Table from '../components/Table';
 
 const UserManager = () => {
-    const [users, setUsers] = useState([
-        {
-            id: 1,
-            username: "user1",
-            email: "user1@example.com",
-            role: "User",
-            status: "Active",
-        },
-    ]);
+    const [users, setUsers] = useState([]);
+    const [editingUser, setEditingUser] = useState(null);
+    const [selectedRole, setSelectedRole] = useState('');
+    const [message, setMessage] = useState('');
 
-    const [isFormVisible, setIsFormVisible] = useState(false);
-    const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
+    useEffect(() => {
+        const loadUsers = async () => {
+            try {
+                const data = await fetchUsers();
+                console.log('Dữ liệu người dùng:', data); // Log để kiểm tra
+                if (Array.isArray(data)) {
+                    setUsers(data);
+                } else {
+                    throw new Error('Dữ liệu từ API không hợp lệ');
+                }
+            } catch (error) {
+                console.error('Lỗi khi lấy dữ liệu:', error.message);
+                setMessage('Không thể tải danh sách người dùng. Vui lòng thử lại.');
+            }
+        };
+        loadUsers();
+    }, []);
 
-    const handleSubmit = (formData) => {
-        if (isEditing) {
-            // Cập nhật user
-            setUsers(users.map(user => 
-                user.id === selectedUser.id ? { ...user, ...formData } : user
-            ));
-        } else {
-            // Thêm user mới
-            const newId = users.length + 1;
-            const newUser = { id: newId, ...formData };
-            setUsers([...users, newUser]);
+    const handleRoleChange = async () => {
+        if (!selectedRole) {
+            setMessage('Vui lòng chọn một vai trò.');
+            return;
         }
-        setIsFormVisible(false);
-        setSelectedUser(null);
-        setIsEditing(false);
+        try {
+            await updateRole(editingUser.user_id, selectedRole);
+            setMessage('Cập nhật role thành công!');
+            setEditingUser(null);
+            setSelectedRole('');
+            // Reload danh sách
+            const data = await fetchUsers();
+            setUsers(data);
+        } catch (error) {
+            console.error('Lỗi khi cập nhật role:', error.message);
+            setMessage(error.message || 'Cập nhật role thất bại.');
+        }
     };
 
-    const handleEdit = (user) => {
-        setSelectedUser(user);
-        setIsEditing(true);
-        setIsFormVisible(true);
-    };
-
-    const handleDelete = (user) => {
-        setSelectedUser(user);
-        setIsDeleteModalVisible(true);
-    };
-
-    const confirmDelete = () => {
-        setUsers(users.filter(user => user.id !== selectedUser.id));
-        setIsDeleteModalVisible(false);
-        setSelectedUser(null);
+    const handleDelete = async (user_id) => {
+        if (window.confirm('Bạn có chắc muốn xóa người dùng này?')) {
+            try {
+                await deleteUser(user_id);
+                setUsers((prevUsers) => prevUsers.filter((user) => user.user_id !== user_id));
+                setMessage('Xóa người dùng thành công!');
+            } catch (error) {
+                console.error('Lỗi khi xóa người dùng:', error.message);
+                setMessage(error.message || 'Xóa người dùng thất bại.');
+            }
+        }
     };
 
     const columns = [
-        { key: "username", label: "Tên người dùng" },
-        { key: "email", label: "Email" },
-        { key: "role", label: "Vai trò" },
-        { key: "status", label: "Trạng thái" },
+        { key: 'user_name', label: 'Tên người dùng' },
+        { key: 'user_email', label: 'Email' },
+        {
+            key: 'Roles',
+            label: 'Vai trò',
+            render: (user) => user.Roles?.map((r) => r.role_name).join(', ') || 'N/A',
+        },
+        {
+            key: 'actions',
+            label: 'Thao tác',
+            render: (user) => (
+                <div className="flex gap-2">
+                    <button
+                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        onClick={() => {
+                            setEditingUser(user);
+                            const currentRole = user.Roles?.[0]?.role_name || '';
+                            setSelectedRole(currentRole);
+                        }}
+                    >
+                        Sửa role
+                    </button>
+                    <button
+                        className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        onClick={() => handleDelete(user.user_id)}
+                    >
+                        Xóa
+                    </button>
+                </div>
+            ),
+        },
     ];
 
     return (
-        <div className="flex flex-col h-full">
-            <Navbar onAddClick={() => {
-                setIsEditing(false);
-                setSelectedUser(null);
-                setIsFormVisible(true);
-            }} />
-            
-            <div className="container mx-auto p-4 flex-1">
-                {/* Form thêm/sửa */}
-                <Form
-                    isVisible={isFormVisible}
-                    onClose={() => {
-                        setIsFormVisible(false);
-                        setSelectedUser(null);
-                        setIsEditing(false);
-                    }}
-                    title={isEditing ? "Chỉnh sửa người dùng" : "Thêm người dùng"}
-                    fields={[
-                        { name: "username", label: "Tên người dùng", type: "text" },
-                        { name: "email", label: "Email", type: "email" },
-                        { name: "role", label: "Vai trò", type: "text" },
-                        { name: "status", label: "Trạng thái", type: "text" },
-                    ]}
-                    initialValues={selectedUser || {}}
-                    onSubmit={handleSubmit}
-                />
+        <div className="p-4">
+            <h1 className="text-xl font-bold mb-4 text-white">Quản lý người dùng</h1>
 
-                {/* Modal xác nhận xóa */}
-                {isDeleteModalVisible && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-[#282828] p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-                            <h2 className="text-white text-xl font-bold mb-4">Xác nhận xóa</h2>
-                            <p className="text-gray-300 mb-6">
-                                Bạn có chắc chắn muốn xóa người dùng "{selectedUser?.username}" không?
-                            </p>
-                            <div className="flex justify-end gap-4">
-                                <button
-                                    onClick={() => setIsDeleteModalVisible(false)}
-                                    className="px-4 py-2 rounded-full bg-gray-500 text-white hover:bg-gray-600 transition duration-200"
-                                >
-                                    Hủy
-                                </button>
-                                <button
-                                    onClick={confirmDelete}
-                                    className="px-4 py-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition duration-200"
-                                >
-                                    Xóa
-                                </button>
-                            </div>
+            {message && (
+                <div
+                    className={`p-4 mb-4 rounded ${
+                        message.includes('thành công') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}
+                >
+                    {message}
+                </div>
+            )}
+
+            <Table columns={columns} data={users} />
+
+            {/* Form sửa role */}
+            {editingUser && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-[#282828] p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+                        <h2 className="text-white text-xl font-bold mb-4">
+                            Cập nhật role cho {editingUser.user_name}
+                        </h2>
+
+                        <select
+                            className="w-full p-2 rounded bg-gray-800 text-white mb-4"
+                            value={selectedRole}
+                            onChange={(e) => setSelectedRole(e.target.value)}
+                        >
+                            <option value="">-- Chọn vai trò --</option>
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                        </select>
+
+                        <div className="flex justify-end gap-4">
+                            <button
+                                onClick={() => {
+                                    setEditingUser(null);
+                                    setSelectedRole('');
+                                    setMessage('');
+                                }}
+                                className="px-4 py-2 rounded bg-gray-500 text-white hover:bg-gray-600"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleRoleChange}
+                                className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
+                            >
+                                Lưu
+                            </button>
                         </div>
                     </div>
-                )}
-
-                <div className="mt-8">
-                    <Table 
-                        columns={columns} 
-                        data={users}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                    />
                 </div>
-            </div>
+            )}
         </div>
     );
 };

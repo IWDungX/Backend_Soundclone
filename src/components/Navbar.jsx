@@ -6,7 +6,7 @@ const Navbar = ({ onAddClick }) => {
     const navigate = useNavigate();
 
     // Kiểm tra token
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('token');
     if (!token) {
         // Nếu không có token, chuyển hướng về trang đăng nhập
         navigate('/login');

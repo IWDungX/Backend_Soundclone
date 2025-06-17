@@ -1,48 +1,70 @@
 import { useState, useEffect } from "react";
-import { X } from "lucide-react"; // Import icon X
-import { fetchArtists, fetchGenres } from "../services/apiSongs"; // Import API calls
+import { X } from "lucide-react";
+import { fetchArtists, fetchGenres } from "../services/apiSongs";
 
 const Form = ({
     title,
-    fields, // Mảng các trường (name, label, type)
-    onSubmit, // Xử lý submit
-    onClose, // Đóng modal
-    initialValues = {}, // Giá trị mặc định
-    isVisible = false, // Kiểm soát hiển thị modal
+    fields,
+    onSubmit,
+    onClose,
+    initialValues = {},
+    isVisible = false,
 }) => {
     const [formData, setFormData] = useState(initialValues);
     const [artists, setArtists] = useState([]);
     const [genres, setGenres] = useState([]);
-
-    // Lấy danh sách artists và genres từ API khi component mount
+    const [error, setError] = useState(""); 
     useEffect(() => {
         const loadData = async () => {
             try {
                 const artistsData = await fetchArtists();
                 const genresData = await fetchGenres();
-                setArtists(artistsData);
-                setGenres(genresData);
-                setFormData(initialValues); // Đặt lại giá trị mặc định khi initialValues thay đổi
+
+                setArtists(Array.isArray(artistsData) ? artistsData : []);
+                setGenres(Array.isArray(genresData) ? genresData : []);
             } catch (error) {
                 console.error("Error loading dropdown data:", error);
+                setError("Không thể tải dữ liệu nghệ sĩ hoặc thể loại.");
             }
         };
-        if (isVisible) loadData(); // Chỉ tải dữ liệu khi form hiển thị
+
+        if (isVisible) {
+            loadData();
+            setFormData(initialValues);
+            setError(""); 
+        }
     }, [isVisible, initialValues]);
 
     const handleInputChange = (e) => {
         const { name, value, files } = e.target;
         if (files) {
-            setFormData((prev) => ({ ...prev, [name]: files[0] }));
+            const file = files[0]; 
+            if (file) {
+                setFormData((prev) => {
+                    const newData = { ...prev, [name]: file };
+                    console.log("Updated formData (file):", newData);
+                    return newData;
+                });
+            }
         } else {
-            setFormData((prev) => ({ ...prev, [name]: value }));
+            setFormData((prev) => {
+                const newData = { ...prev, [name]: value };
+                console.log("Updated formData (text):", newData);
+                return newData;
+            });
         }
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        if (!formData.artist_name && fields.some((f) => f.name === "artist_name")) {
+            setError("Vui lòng nhập tên nghệ sĩ.");
+            return;
+        }
+
         onSubmit(formData);
-        onClose(); // Đóng modal sau khi submit
+        onClose();
     };
 
     if (!isVisible) return null;
@@ -50,7 +72,6 @@ const Form = ({
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-black rounded-xl border border-[#282828] shadow-lg w-full max-w-4xl mx-4">
-                {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-[#282828]">
                     <h2 className="text-2xl font-bold text-white">{title}</h2>
                     <button
@@ -61,13 +82,15 @@ const Form = ({
                     </button>
                 </div>
 
-                {/* Form Content */}
                 <form onSubmit={handleSubmit} className="p-6">
+                    {/* Hiển thị lỗi nếu có */}
+                    {error && <div className="text-red-500 mb-4">{error}</div>}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {fields.map((field) => (
                             <div key={field.name} className="space-y-2">
                                 <label className="block text-gray-300 text-sm font-medium">
-                                    {field.label}
+                                    {field.label} {field.required && <span className="text-red-500">*</span>}
                                 </label>
                                 {field.type === "file" ? (
                                     <input
@@ -88,6 +111,7 @@ const Form = ({
                                         name={field.name}
                                         value={formData[field.name] || ""}
                                         onChange={handleInputChange}
+                                        required={field.required}
                                         className="w-full bg-[#282828] text-white rounded-lg
                                             border border-gray-600 p-2.5
                                             focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -104,6 +128,7 @@ const Form = ({
                                         name={field.name}
                                         value={formData[field.name] || ""}
                                         onChange={handleInputChange}
+                                        required={field.required}
                                         className="w-full bg-[#282828] text-white rounded-lg
                                             border border-gray-600 p-2.5
                                             focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -121,18 +146,22 @@ const Form = ({
                                         name={field.name}
                                         value={formData[field.name] || ""}
                                         onChange={handleInputChange}
+                                        required={field.required} // Thêm required nếu cần
                                         className="w-full bg-[#282828] text-white rounded-lg
                                             border border-gray-600 p-2.5
                                             focus:ring-2 focus:ring-green-500 focus:border-transparent
                                             placeholder-gray-400"
-                                        placeholder={`Nhập ${field.label.toLowerCase()}`}
+                                        placeholder={
+                                            field.name === "image_url"
+                                                ? "Nhập URL ảnh"
+                                                : `Nhập ${field.label.toLowerCase()}`
+                                        }
                                     />
                                 )}
                             </div>
                         ))}
                     </div>
 
-                    {/* Footer với các nút */}
                     <div className="flex justify-center gap-4 mt-6 pt-6 border-t border-[#282828]">
                         <button
                             type="button"

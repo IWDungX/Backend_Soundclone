@@ -1,5 +1,5 @@
 import network from './network';
-const baseUrl = 'http://localhost:15000/api';
+const baseUrl = 'http://192.168.224.72:15000/api';
 
 function get(endPoint) {
   return network.get(`${baseUrl}/${endPoint}`);

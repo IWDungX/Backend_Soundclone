@@ -12,7 +12,7 @@ const SongManager = () => {
     useEffect(() => {
         fetchSongs()
             .then((data) => {
-                console.log("Fetched songs:", data);
+                console.log("Dữ liệu bài hát:", data);
     
                 const normalizedSongs = data.map((song) => ({
                     ...song,
@@ -22,7 +22,7 @@ const SongManager = () => {
                 }));
                 setSongs(normalizedSongs);
             })
-            .catch((error) => console.error("Error fetching songs:", error));
+            .catch((error) => console.error("Lỗi không lấy được dữ liệu bài hát:", error));
     }, []);
 
     const handleSubmit = async (formData) => {
@@ -39,11 +39,11 @@ const SongManager = () => {
             let result;
             if (editingSong) {
                 result = await updateSong(editingSong.song_id, songData);
-                console.log("Updated song:", result.song); 
+                console.log("Cập nhập bài hát:", result.song); 
                 setSongs(songs.map((s) => (s.song_id === editingSong.song_id ? result.song : s))); 
             } else {
                 result = await uploadSong(songData);
-                console.log("New song:", result.song); 
+                console.log("Bài hát mới:", result.song); 
                 setSongs([...songs, result.song]);
             }
     
@@ -55,7 +55,7 @@ const SongManager = () => {
     };
 
     const handleEdit = (song) => {
-        console.log("Editing song:", song); 
+        console.log("Cập nhập bài hát:", song); 
         console.log("Song ID:", song?.song_id); 
     
         if (!song?.song_id) {

@@ -52,7 +52,7 @@ const App = () => {
 
     const handleLogin = async (email, password) => {
         try {
-            const response = await axios.post('http://localhost:15000/api/authAdmin', {
+            const response = await axios.post('http://localhost:15000/api/admin/auth', {
                 user_email: email,
                 user_password: password
             });
@@ -76,7 +76,7 @@ const App = () => {
     const handleLogout = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.post('http://localhost:15000/api/authAdmin/logout', {}, {
+            const response = await axios.post('http://localhost:15000/api/admin/auth/logout', {}, {
                 headers: {
                     Authorization: `Bearer ${token}` // Gửi token trong header
                 }
