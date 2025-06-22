@@ -58,16 +58,11 @@ npm run ios
 * JWT + Bcrypt (xác thực)
 
 ### ⚙️ Setup
-
-## Docker
-
 - The app is dockerized, you can run it on a docker platform with:
 
 ```bash
   docker-compose up
 ```
-
-- THe app has Client service, Server service and a Mysql service.
 - Docker will build a network and connect all the services, it offers hot-reload so the code can be edited live.
 
 ```bash
@@ -121,7 +116,7 @@ Music_Streaming_App/
 ---
 
 ## 📸 Demo
-
+[![Demo Video](https://img.youtube.com/vi/eCGEpmd0lAA/hqdefault.jpg)](https://youtube.com/shorts/eCGEpmd0lAA?feature=share)
 
 
 
